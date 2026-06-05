@@ -490,10 +490,8 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
 try {
   var _test = localStorage.getItem('pn_test');
   if(_test) {
-    console.log('localStorage WORKS - test value:', _test);
   } else {
     localStorage.setItem('pn_test', 'ok_'+Date.now());
-    console.log('localStorage SET for first time');
   }
 } catch(e) {
   console.error('localStorage ERROR:', e);
@@ -630,9 +628,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var savedName=localStorage.getItem('pn_name');
   var savedRoom=localStorage.getItem('pn_room');
   var savedHost=localStorage.getItem('pn_host');
-  console.log('restoreSession: id='+savedId+' name='+savedName+' room='+savedRoom+' host='+savedHost);
   if(!savedId||!savedName||!savedRoom){
-    console.log('No session data - localStorage contents:', 
       'id='+localStorage.getItem('pn_id'),
       'name='+localStorage.getItem('pn_name'),
       'room='+localStorage.getItem('pn_room')
@@ -640,15 +636,12 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
   myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
-  console.log('Querying Firebase for room: '+savedRoom);
   db.ref('rooms/'+savedRoom).once('value').then(function(snap){
     if(!snap.exists()){
-      console.log('Room '+savedRoom+' does not exist in Firebase!');
       localStorage.removeItem('pn_id'); localStorage.removeItem('pn_name');
       localStorage.removeItem('pn_room'); localStorage.removeItem('pn_host');
       roomCode=''; return;
     }
-    console.log('Room found! status='+snap.val().status);
     var room=snap.val();
     var prevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove duplicates with same name
@@ -657,25 +650,21 @@ document.addEventListener('DOMContentLoaded', function() {
     if(room.players){
       Object.keys(room.players).forEach(function(id){
         if(room.players[id].name===myName && id!==myId){
-          console.log('Removing duplicate player:', id, room.players[id].name);
           removes.push(db.ref('rooms/'+savedRoom+'/players/'+id).remove());
         }
       });
     }
     Promise.all(removes).then(function(){
       // Re-add ourselves with preserved score
-      console.log('Re-adding player: isHost='+isHost+' myId='+myId+' score='+prevScore);
       if(isHost){
         return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore,host:true});
       } else {
         return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore});
       }
     }).then(function(){
-      console.log('Session restored! isHost='+isHost+' room='+savedRoom);
       try{document.getElementById('lobbyCodeDisp').textContent=savedRoom;}catch(e){}
       try{document.getElementById('lobbyCodeDisp2').textContent=savedRoom;}catch(e){}
       try{document.getElementById('lobbyCode').textContent=savedRoom;}catch(e){}
-      console.log('Calling listenRoom now...');
       setTimeout(function(){
       try{
         listenRoom();
@@ -700,7 +689,6 @@ window.addEventListener('pagehide', function(){
     localStorage.setItem('pn_name', myName);
     localStorage.setItem('pn_room', roomCode);
     localStorage.setItem('pn_host', isHost?'true':'false');
-    console.log('pagehide: saved session roomCode='+roomCode);
   }
 });
 
