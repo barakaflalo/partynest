@@ -619,7 +619,8 @@ window.setLang=function(l){
   const rtl=['he','ar'].includes(l);
   document.body.dir=rtl?'rtl':'ltr';
   document.body.classList.toggle('ltr',!rtl);
-  
+  applyT();
+};
 
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -705,7 +706,6 @@ window.addEventListener('pagehide', function(){
 
 applyT();
 }); // end DOMContentLoaded
-};
 function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
 
 // ===== STATE =====
