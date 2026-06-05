@@ -629,10 +629,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var savedRoom=localStorage.getItem('pn_room');
   var savedHost=localStorage.getItem('pn_host');
   if(!savedId||!savedName||!savedRoom){
-      'id='+localStorage.getItem('pn_id'),
-      'name='+localStorage.getItem('pn_name'),
-      'room='+localStorage.getItem('pn_room')
-    );
     return;
   }
   myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
