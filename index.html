@@ -486,6 +486,19 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
   </div>
 </div>
 <script>
+// DEBUG localStorage persistence
+try {
+  var _test = localStorage.getItem('pn_test');
+  if(_test) {
+    console.log('localStorage WORKS - test value:', _test);
+  } else {
+    localStorage.setItem('pn_test', 'ok_'+Date.now());
+    console.log('localStorage SET for first time');
+  }
+} catch(e) {
+  console.error('localStorage ERROR:', e);
+}
+
 const FB = {
   apiKey:"AIzaSyCZSu6eqXM_e7dNcNqgQOrZCsV-xvT_TVQ",
   authDomain:"partynest-91240.firebaseapp.com",
@@ -617,7 +630,14 @@ document.addEventListener('DOMContentLoaded', function() {
   var savedRoom=localStorage.getItem('pn_room');
   var savedHost=localStorage.getItem('pn_host');
   console.log('restoreSession: id='+savedId+' name='+savedName+' room='+savedRoom+' host='+savedHost);
-  if(!savedId||!savedName||!savedRoom){console.log('No session data'); return;}
+  if(!savedId||!savedName||!savedRoom){
+    console.log('No session data - localStorage contents:', 
+      'id='+localStorage.getItem('pn_id'),
+      'name='+localStorage.getItem('pn_name'),
+      'room='+localStorage.getItem('pn_room')
+    );
+    return;
+  }
   myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
   db.ref('rooms/'+savedRoom).once('value').then(function(snap){
     if(!snap.exists()){
