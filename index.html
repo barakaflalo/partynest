@@ -933,11 +933,17 @@ function loadTrivia(room){
   // Stable shuffle using question index
   const seed=idx*7;
   const opts=allOpts.sort((a,b)=>(a.charCodeAt(0)+seed)%11-(b.charCodeAt(0)+seed)%11);
-  grid.innerHTML=opts.map(opt=>{
+  grid.innerHTML='';
+  opts.forEach((opt,oi)=>{
     let cls='';
     if(myAns)cls=opt===q.a?'correct':(opt===myAns?'wrong':'');
-    return `<button class="ans-btn ${cls}" ${myAns?'disabled':''} onclick="submitTrivia(${JSON.stringify(opt)})">${opt}</button>`;
-  }).join('');
+    const btn=document.createElement('button');
+    btn.className='ans-btn '+cls;
+    btn.textContent=opt;
+    if(myAns)btn.disabled=true;
+    btn.addEventListener('click',()=>window.submitTrivia(opt));
+    grid.appendChild(btn);
+  });
 
   // Answered count
   const answeredCount=Object.keys(room.triviaAnswers||{}).length;
@@ -966,7 +972,9 @@ function loadTrivia(room){
 }
 
 window.submitTrivia=async function(answer){
+  if(!roomCode)return;
   const snap=await get(ref(db,'rooms/'+roomCode));
+  if(!snap.exists())return;
   const room=snap.val();
   if(!room||room.status!=='trivia')return;
   if((room.triviaAnswers||{})[myId])return;
@@ -975,27 +983,40 @@ window.submitTrivia=async function(answer){
   const elapsed=Math.floor((Date.now()-(room.triviaStart||Date.now()))/1000);
   const pts=ok?Math.max(50,100+(20-elapsed)*5):0;
   if(ok)playSound('correct');else playSound('wrong');
+  // Save answer
   await update(ref(db,'rooms/'+roomCode+'/triviaAnswers'),{[myId]:answer});
+  // Save score
   if(pts>0){
     const cur=(room.triviaScores||{})[myId]||0;
     await update(ref(db,'rooms/'+roomCode+'/triviaScores'),{[myId]:cur+pts});
     await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:cur+pts});
   }
-  const newAns={...(room.triviaAnswers||{}),[myId]:answer};
-  if(isHost&&Object.keys(newAns).length>=Object.keys(room.players||{}).length){
-    setTimeout(()=>advanceTrivia(room),1200);
+  // Host checks if all answered
+  if(isHost){
+    const snap2=await get(ref(db,'rooms/'+roomCode));
+    const r2=snap2.val();
+    const answered=Object.keys(r2.triviaAnswers||{}).length;
+    const total=Object.keys(r2.players||{}).length;
+    if(answered>=total){
+      setTimeout(()=>advanceTrivia(r2),1500);
+    }
   }
 };
 
 window.advanceTriviaManual=function(){
-  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceTrivia(snap.val()));
+  get(ref(db,'rooms/'+roomCode)).then(snap=>{if(snap.exists())advanceTrivia(snap.val());});
 };
 
 async function advanceTrivia(room){
   clearInterval(gameTimerInterval);
-  const next=(room.triviaIndex||0)+1;
-  if(next>=(room.triviaQuestions||[]).length){
-    const fs={};Object.entries(room.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
+  // Re-fetch to get latest data
+  const snap=await get(ref(db,'rooms/'+roomCode));
+  if(!snap.exists())return;
+  const r=snap.val();
+  const next=(r.triviaIndex||0)+1;
+  if(next>=(r.triviaQuestions||[]).length){
+    const fs={};
+    Object.entries(r.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
     await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
   } else {
     await update(ref(db,'rooms/'+roomCode),{triviaIndex:next,triviaAnswers:{},triviaStart:Date.now()});
