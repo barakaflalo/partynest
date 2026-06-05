@@ -639,12 +639,15 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
   myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
+  console.log('Querying Firebase for room: '+savedRoom);
   db.ref('rooms/'+savedRoom).once('value').then(function(snap){
     if(!snap.exists()){
+      console.log('Room '+savedRoom+' does not exist in Firebase!');
       localStorage.removeItem('pn_id'); localStorage.removeItem('pn_name');
       localStorage.removeItem('pn_room'); localStorage.removeItem('pn_host');
       roomCode=''; return;
     }
+    console.log('Room found! status='+snap.val().status);
     var room=snap.val();
     var prevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove duplicates with same name
