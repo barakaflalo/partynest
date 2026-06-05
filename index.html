@@ -265,15 +265,11 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <div style="font-size:0.72rem;color:var(--text-dim);" data-i="shareCode">שתף קוד זה עם השחקנים</div>
     </div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:4px 0;">
-      <button id="btn-wa" style="background:#25D366;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareWa').click()">💬 WhatsApp</button>
-      <button id="btn-tg" style="background:#2CA5E0;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareTg').click()">✈️ Telegram</button>
-      <button id="btn-cp" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareCp').click()">🔗 העתק</button>
-      <button id="btn-sh" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareSh').click()">📤 שתף</button>
-      <!-- Hidden proxy buttons set by module -->
-      <button id="_shareWa" style="display:none"></button>
-      <button id="_shareTg" style="display:none"></button>
-      <button id="_shareCp" style="display:none"></button>
-      <button id="_shareSh" style="display:none"></button>
+      <button id="btn-wa" style="background:#25D366;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">💬 WhatsApp</button>
+      <button id="btn-tg" style="background:#2CA5E0;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">✈️ Telegram</button>
+      <button id="btn-cp" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">🔗 העתק</button>
+      <button id="btn-sh" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">📤 שתף</button>
+
     </div>
     <div class="lobby-players">
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
@@ -631,6 +627,11 @@ window.shareVia=function(platform){
 
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
+  // Share buttons
+  document.getElementById('btn-wa').addEventListener('click', function(){shareVia('whatsapp');});
+  document.getElementById('btn-tg').addEventListener('click', function(){shareVia('telegram');});
+  document.getElementById('btn-cp').addEventListener('click', function(){shareVia('copy');});
+  document.getElementById('btn-sh').addEventListener('click', function(){shareVia('native');});
   // Restore session on reload
   (function restoreSession(){
   const savedId=localStorage.getItem('pn_id');
@@ -654,19 +655,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const room=snap.val();
     const myPrevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove ALL entries with same name (cleanup duplicates)
+    // Remove all old entries with same name (from previous session)
     if(room.players){
       const removes=Object.entries(room.players)
-        .filter(([id,p])=>p.name===myName&&id!==myId)
+        .filter(([id,p])=>p.name===myName && id!==myId)
         .map(([id])=>db.ref('rooms/'+savedRoom+'/players/'+id).remove());
-      await Promise.all(removes);
+      if(removes.length) await Promise.all(removes);
     }
     // Re-add self with preserved score
     if(!isHost){
       await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore});
+    } else {
+      // For host - make sure host flag is set
+      if(!room.players || !room.players[myId]){
+        await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore,host:true});
+      }
     }
     // Update UI headers
     document.getElementById('lobbyCodeDisp').textContent=savedRoom;
     document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
+    document.getElementById('lobbyCode').textContent=savedRoom;
+    document.getElementById('triviaCode').textContent=savedRoom;
+    document.getElementById('forbiddenCode').textContent=savedRoom;
+    document.getElementById('drawCode').textContent=savedRoom;
     // Let listenRoom handle correct screen based on room.status
     listenRoom();
   });
@@ -770,14 +781,7 @@ function setupLobbyHost(){
   const btnCp=document.getElementById('btn-cp');
   const btnSh=document.getElementById('btn-sh');
   // Set hidden proxy buttons for share (cross module boundary)
-  const _wa=document.getElementById('_shareWa');
-  const _tg=document.getElementById('_shareTg');
-  const _cp=document.getElementById('_shareCp');
-  const _sh=document.getElementById('_shareSh');
-  if(_wa)_wa.onclick=()=>shareVia('whatsapp');
-  if(_tg)_tg.onclick=()=>shareVia('telegram');
-  if(_cp)_cp.onclick=()=>shareVia('copy');
-  if(_sh)_sh.onclick=()=>shareVia('native');
+
   // QR
   document.getElementById('qrcode').innerHTML='';
   const url=window.location.href.split('?')[0]+'?join='+roomCode;
