@@ -13,10 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script>
-// No pull-to-refresh
-try{document.body.style.overscrollBehaviorY="contain";}catch(e){}
-</script>
+
 <style>
 :root{
   --gold:#C9A84C;--gold-dim:#8A6A2A;--gold-light:#F0C060;
@@ -487,7 +484,8 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <button class="home-btn btn-outline" style="flex:1;" onclick="leaveRoom()" data-i="leave">יציאה</button>
     </div>
   </div>
-</div
+</div>
+<script>
 const FB = {
   apiKey:"AIzaSyCZSu6eqXM_e7dNcNqgQOrZCsV-xvT_TVQ",
   authDomain:"partynest-91240.firebaseapp.com",
@@ -1525,8 +1523,6 @@ if(params.get('join')){
   document.getElementById('joinCodeInput').value=params.get('join');
   goTo('joinName');
 }
-
-applyT();
 
 applyT();
 </script>
