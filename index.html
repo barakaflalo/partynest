@@ -21,7 +21,16 @@ document.addEventListener('touchmove',function(e){
   var y=e.touches[0].clientY;
   if(document.scrollingElement.scrollTop===0&&y>lastY){e.preventDefault();}
   lastY=y;
+},{passive:false}); Prevent pull-to-refresh on mobile
+var lastY=0;
+document.addEventListener('touchstart',function(e){lastY=e.touches[0].clientY;},{passive:false});
+document.addEventListener('touchmove',function(e){
+  var y=e.touches[0].clientY;
+  if(document.scrollingElement.scrollTop===0&&y>lastY){e.preventDefault();}
+  lastY=y;
 },{passive:false});
+
+
 </script>
 <style>
 :root{
@@ -617,28 +626,6 @@ window.setLang=function(l){
   document.body.dir=rtl?'rtl':'ltr';
   document.body.classList.toggle('ltr',!rtl);
   
-window.shareVia=function(platform){
-  const url=window.location.href.split('?')[0]+'?join='+roomCode;
-  const msg=(lang==='he'?'הצטרף למשחק PartyNest! קוד: ':lang==='ar'?'انضم للعبة PartyNest! الكود: ':'Join PartyNest game! Code: ')+roomCode+'\n'+url;
-  if(platform==='whatsapp'){
-    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
-  } else if(platform==='telegram'){
-    window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(lang==='he'?'הצטרף למשחק! קוד: '+roomCode:'Join the game! Code: '+roomCode),'_blank');
-  } else if(platform==='copy'){
-    navigator.clipboard.writeText(url).then(()=>{
-      const btn=document.getElementById('btn-cp');
-      if(btn){btn.textContent='✅ הועתק!';setTimeout(()=>btn.textContent='🔗 העתק',2000);}
-    }).catch(()=>{
-      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
-    });
-  } else if(platform==='native'){
-    if(navigator.share){
-      navigator.share({title:'PartyNest',text:msg,url}).catch(()=>{});
-    } else {
-      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
-    }
-  }
-};
 
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
@@ -675,10 +662,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore});
       }
     }).then(function(){
+      console.log('Session restored! isHost='+isHost);
       document.getElementById('lobbyCodeDisp').textContent=savedRoom;
       document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
       document.getElementById('lobbyCode').textContent=savedRoom;
-      if(isHost) setupLobbyHost();
       listenRoom();
     });
   });
@@ -772,6 +759,30 @@ window.selectGame=function(g){
   document.getElementById('go-'+g).classList.add('active');
   db.ref('rooms/'+roomCode).update({game:g});
 };
+
+window.shareVia=function(platform){
+  const url=window.location.href.split('?')[0]+'?join='+roomCode;
+  const msg=(lang==='he'?'הצטרף למשחק PartyNest! קוד: ':lang==='ar'?'انضم للعبة PartyNest! الكود: ':'Join PartyNest game! Code: ')+roomCode+'\n'+url;
+  if(platform==='whatsapp'){
+    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  } else if(platform==='telegram'){
+    window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(lang==='he'?'הצטרף למשחק! קוד: '+roomCode:'Join the game! Code: '+roomCode),'_blank');
+  } else if(platform==='copy'){
+    navigator.clipboard.writeText(url).then(()=>{
+      const btn=document.getElementById('btn-cp');
+      if(btn){btn.textContent='✅ הועתק!';setTimeout(()=>btn.textContent='🔗 העתק',2000);}
+    }).catch(()=>{
+      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+    });
+  } else if(platform==='native'){
+    if(navigator.share){
+      navigator.share({title:'PartyNest',text:msg,url}).catch(()=>{});
+    } else {
+      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+    }
+  }
+};
+
 
 function setupLobbyHost(){
   document.getElementById('lobbyCode').textContent=roomCode;
