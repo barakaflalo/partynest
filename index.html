@@ -656,12 +656,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const room=snap.val();
     const myPrevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove ALL entries with same name (cleanup duplicates)
-    // Remove all old entries with same name (from previous session)
+    // Remove ALL old entries with same name (from previous session)
     if(room.players){
-      const removes=Object.entries(room.players)
-        .filter(([id,p])=>p.name===myName && id!==myId)
-        .map(([id])=>db.ref('rooms/'+savedRoom+'/players/'+id).remove());
-      if(removes.length) await Promise.all(removes);
+      const removes=[];
+      Object.entries(room.players).forEach(([id,p])=>{
+        if(p.name===myName && id!==myId){
+          console.log('Removing duplicate:', id, p.name);
+          removes.push(db.ref('rooms/'+savedRoom+'/players/'+id).remove());
+        }
+      });
+      if(removes.length>0) await Promise.all(removes);
     }
     // Re-add self with preserved score
     if(!isHost){
@@ -672,14 +676,15 @@ document.addEventListener('DOMContentLoaded', function() {
         await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore,host:true});
       }
     }
-    // Update UI headers
-    document.getElementById('lobbyCodeDisp').textContent=savedRoom;
-    document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
-    document.getElementById('lobbyCode').textContent=savedRoom;
-    document.getElementById('triviaCode').textContent=savedRoom;
-    document.getElementById('forbiddenCode').textContent=savedRoom;
-    document.getElementById('drawCode').textContent=savedRoom;
-    // Let listenRoom handle correct screen based on room.status
+    // Update UI headers with room code everywhere
+    ['lobbyCodeDisp','lobbyCodeDisp2','lobbyCode',
+     'triviaCode','forbiddenCode','drawCode'].forEach(id=>{
+       const el=document.getElementById(id);
+       if(el) el.textContent=savedRoom;
+    });
+    // If host, reinitialize lobby UI
+    if(isHost) setupLobbyHost();
+    // Let listenRoom handle screen routing based on room.status
     listenRoom();
   });
   })();
@@ -944,8 +949,9 @@ function getScoresFlat(){
 
 // ===== CHAT =====
 function listenChat(game){
-  if(chatRef){try{chatRef.off('value');}catch(e){}chatRef=null;}
-  db.ref('rooms/'+roomCode+'/chat').on('value', snap=>{
+  if(chatRef){try{chatRef.off('value');}catch(e){} chatRef=null;}
+  chatRef = db.ref('rooms/'+roomCode+'/chat');
+  chatRef.on('value', snap=>{
     if(!snap.exists())return;
     const msgs=Object.values(snap.val()).sort((a,b)=>a.ts-b.ts).slice(-50);
     const container=document.getElementById(game+'ChatMsgs');
