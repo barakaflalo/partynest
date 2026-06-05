@@ -1515,12 +1515,14 @@ function showResults(room){
   const podium=document.getElementById('podiumWrap');
   const cls=['gold','silver','bronze'];
   const medals=['🥇','🥈','🥉'];
+  // order: silver(2nd), gold(1st), bronze(3rd) — visually left-to-right
   const order=[1,0,2];
+  podium.style.direction='ltr';
   podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos,i)=>{
     const [id,pts]=sorted[pos]||[null,0];
     const name=(scores[id]||{name:'?'}).name;
     return`<div class="podium-col">
-      <div class="podium-bar ${cls[i]}">${medals[pos]||pos+1}</div>
+      <div class="podium-bar ${cls[pos]}">${medals[pos]}</div>
       <div class="podium-name">${name}</div>
       <div style="font-size:0.75rem;color:var(--gold);">${pts}</div>
     </div>`;
