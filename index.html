@@ -8,29 +8,14 @@
 <!-- build:1780682844 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>PartyNest — משחקים מרובי שחקנים</title>
-<!-- v2.5 -->
+<!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
-// Prevent pull-to-refresh on mobile
-var lastY=0;
-document.addEventListener('touchstart',function(e){lastY=e.touches[0].clientY;},{passive:false});
-document.addEventListener('touchmove',function(e){
-  var y=e.touches[0].clientY;
-  if(document.scrollingElement.scrollTop===0&&y>lastY){e.preventDefault();}
-  lastY=y;
-},{passive:false}); Prevent pull-to-refresh on mobile
-var lastY=0;
-document.addEventListener('touchstart',function(e){lastY=e.touches[0].clientY;},{passive:false});
-document.addEventListener('touchmove',function(e){
-  var y=e.touches[0].clientY;
-  if(document.scrollingElement.scrollTop===0&&y>lastY){e.preventDefault();}
-  lastY=y;
-},{passive:false});
-
-
+// No pull-to-refresh
+try{document.body.style.overscrollBehaviorY="contain";}catch(e){}
 </script>
 <style>
 :root{
@@ -502,9 +487,7 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <button class="home-btn btn-outline" style="flex:1;" onclick="leaveRoom()" data-i="leave">יציאה</button>
     </div>
   </div>
-</div>
-
-<script>
+</div
 const FB = {
   apiKey:"AIzaSyCZSu6eqXM_e7dNcNqgQOrZCsV-xvT_TVQ",
   authDomain:"partynest-91240.firebaseapp.com",
@@ -662,11 +645,21 @@ document.addEventListener('DOMContentLoaded', function() {
         return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore});
       }
     }).then(function(){
-      console.log('Session restored! isHost='+isHost);
-      document.getElementById('lobbyCodeDisp').textContent=savedRoom;
-      document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
-      document.getElementById('lobbyCode').textContent=savedRoom;
-      listenRoom();
+      console.log('Session restored! isHost='+isHost+' room='+savedRoom);
+      try{document.getElementById('lobbyCodeDisp').textContent=savedRoom;}catch(e){}
+      try{document.getElementById('lobbyCodeDisp2').textContent=savedRoom;}catch(e){}
+      try{document.getElementById('lobbyCode').textContent=savedRoom;}catch(e){}
+      try{
+        listenRoom();
+      }catch(err){
+        console.error('listenRoom failed:',err);
+      }
+    }).catch(function(err){
+      console.error('restoreSession failed:',err);
+      localStorage.removeItem('pn_id');
+      localStorage.removeItem('pn_name');
+      localStorage.removeItem('pn_room');
+      localStorage.removeItem('pn_host');
     });
   });
 })();
@@ -1532,6 +1525,8 @@ if(params.get('join')){
   document.getElementById('joinCodeInput').value=params.get('join');
   goTo('joinName');
 }
+
+applyT();
 
 applyT();
 </script>
