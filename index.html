@@ -629,8 +629,10 @@ window.shareVia=function(platform){
   }
 };
 
-// Restore session on reload
-(function restoreSession(){
+// Wait for Firebase to be ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Restore session on reload
+  (function restoreSession(){
   const savedId=localStorage.getItem('pn_id');
   const savedName=localStorage.getItem('pn_name');
   const savedRoom=localStorage.getItem('pn_room');
@@ -668,8 +670,9 @@ window.shareVia=function(platform){
     // Let listenRoom handle correct screen based on room.status
     listenRoom();
   });
-})();
-applyT();
+  })();
+  applyT();
+}); // end DOMContentLoaded
 };
 function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
 
@@ -731,6 +734,8 @@ function playSound(type){
 window.createRoom=async function(){
   const name=document.getElementById('createNameInput').value.trim();
   if(!name){document.getElementById('createErr').textContent=t('nameRequired');return;}
+  document.getElementById('createErr').textContent='מתחבר...';
+  try{
   myName=name;isHost=true;
   roomCode=Math.floor(1000+Math.random()*9000).toString();
   localStorage.setItem('pn_name',myName);
@@ -746,6 +751,7 @@ window.createRoom=async function(){
   localStorage.setItem('pn_room',roomCode);
   setupLobbyHost();
   listenRoom();
+  }catch(e){document.getElementById('createErr').textContent='שגיאה: '+e.message;console.error(e);}
 };
 
 window.selectGame=function(g){
@@ -787,6 +793,7 @@ window.joinRoom=async function(){
   if(!name){document.getElementById('joinErr').textContent=t('nameRequired');return;}
   if(!code||code.length!==4){document.getElementById('joinErr').textContent=t('codeRequired');return;}
   document.getElementById('joinErr').textContent=t('connecting');
+  try{
   myName=name;isHost=false;roomCode=code;
   localStorage.setItem('pn_name',myName);
   localStorage.setItem('pn_id',myId);
@@ -800,6 +807,7 @@ window.joinRoom=async function(){
   showScreen('lobbyPlayer');
   listenRoom();
   playSound('join');
+  }catch(e){document.getElementById('joinErr').textContent='שגיאה: '+e.message;console.error(e);}
 };
 
 // ===== LEAVE =====
