@@ -642,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
   myName=savedName;
   roomCode=savedRoom;
   isHost=savedHost==='true';
-  db.ref('rooms/'+savedRoom).once(\'value\').then(async snap=>{
+  db.ref('rooms/'+savedRoom).once('value').then(async snap=>{
     if(!snap.exists()){
       // Room gone - clear and stay on home
       localStorage.removeItem('pn_name');
@@ -940,7 +940,7 @@ function getScoresFlat(){
 // ===== CHAT =====
 function listenChat(game){
   if(chatListener){db.ref('rooms/'+roomCode+'/chat').off();chatListener=null;}
-  db.ref('rooms/'+roomCode+'/chat').on(\'value\', snap=>{
+  db.ref('rooms/'+roomCode+'/chat').on('value', snap=>{
     if(!snap.exists())return;
     const msgs=Object.values(snap.val()).sort((a,b)=>a.ts-b.ts).slice(-50);
     const container=document.getElementById(game+'ChatMsgs');
@@ -1128,7 +1128,7 @@ window.submitTrivia=async function(answer){
 };
 
 window.advanceTriviaManual=function(){
-  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>{if(snap.exists())advanceTrivia(snap.val());});
+  db.ref('rooms/'+roomCode).once('value').then(snap=>{if(snap.exists())advanceTrivia(snap.val());});
 };
 
 async function advanceTrivia(room){
@@ -1270,7 +1270,7 @@ window.submitForbiddenGuess=async function(){
 };
 
 window.advanceForbiddenManual=function(){
-  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>advanceForbidden(snap.val()));
+  db.ref('rooms/'+roomCode).once('value').then(snap=>advanceForbidden(snap.val()));
 };
 
 async function advanceForbidden(room){
@@ -1441,7 +1441,7 @@ window.checkDrawGuess=async function(submit=false){
 };
 
 window.advanceDrawManual=function(){
-  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>advanceDraw(snap.val()));
+  db.ref('rooms/'+roomCode).once('value').then(snap=>advanceDraw(snap.val()));
 };
 
 async function advanceDraw(room){
