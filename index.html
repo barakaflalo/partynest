@@ -648,17 +648,21 @@ document.addEventListener('DOMContentLoaded', function() {
     var room=snap.val();
     var prevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove duplicates with same name
+    // Remove other entries with same name (duplicates from old sessions)
     var removes=[];
     if(room.players){
       Object.keys(room.players).forEach(function(id){
         if(room.players[id].name===myName && id!==myId){
+          console.log('Removing duplicate player:', id, room.players[id].name);
           removes.push(db.ref('rooms/'+savedRoom+'/players/'+id).remove());
         }
       });
     }
     Promise.all(removes).then(function(){
+      // Re-add ourselves with preserved score
+      console.log('Re-adding player: isHost='+isHost+' myId='+myId+' score='+prevScore);
       if(isHost){
-        return db.ref('rooms/'+savedRoom+'/players/'+myId).update({name:myName,score:prevScore,host:true});
+        return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore,host:true});
       } else {
         return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore});
       }
@@ -681,7 +685,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 })();
-  applyT();
+  // Save session on every important state change
+window.addEventListener('pagehide', function(){
+  if(roomCode && myId && myName){
+    localStorage.setItem('pn_id', myId);
+    localStorage.setItem('pn_name', myName);
+    localStorage.setItem('pn_room', roomCode);
+    localStorage.setItem('pn_host', isHost?'true':'false');
+    console.log('pagehide: saved session roomCode='+roomCode);
+  }
+});
+
+applyT();
 }); // end DOMContentLoaded
 };
 function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
