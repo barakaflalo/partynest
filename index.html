@@ -6,6 +6,8 @@
 <title>PartyNest — משחקים מרובי שחקנים</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root{
   --gold:#C9A84C;--gold-dim:#8A6A2A;--gold-light:#F0C060;
@@ -482,10 +484,7 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
   </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, remove, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
-
+<script>
 const FB = {
   apiKey:"AIzaSyCZSu6eqXM_e7dNcNqgQOrZCsV-xvT_TVQ",
   authDomain:"partynest-91240.firebaseapp.com",
@@ -495,8 +494,8 @@ const FB = {
   messagingSenderId:"503360396840",
   appId:"1:503360396840:web:f35f102b7c67e91fdc9f1d"
 };
-const app = initializeApp(FB);
-const db = getDatabase(app);
+const app = firebase.initializeApp(FB);
+const db = firebase.database();
 
 // ===== I18N =====
 const T = {
@@ -641,7 +640,7 @@ window.shareVia=function(platform){
   myName=savedName;
   roomCode=savedRoom;
   isHost=savedHost==='true';
-  get(ref(db,'rooms/'+savedRoom)).then(async snap=>{
+  db.ref('rooms/'+savedRoom).once(\'value\').then(async snap=>{
     if(!snap.exists()){
       // Room gone - clear and stay on home
       localStorage.removeItem('pn_name');
@@ -654,15 +653,14 @@ window.shareVia=function(platform){
     const myPrevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove ALL entries with same name (cleanup duplicates)
     if(room.players){
-      for(const [id,p] of Object.entries(room.players)){
-        if(p.name===myName && id!==myId){
-          await remove(ref(db,'rooms/'+savedRoom+'/players/'+id));
-        }
-      }
+      const removes=Object.entries(room.players)
+        .filter(([id,p])=>p.name===myName&&id!==myId)
+        .map(([id])=>db.ref('rooms/'+savedRoom+'/players/'+id).remove());
+      await Promise.all(removes);
     }
     // Re-add self with preserved score
     if(!isHost){
-      await set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:myPrevScore});
+      await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore});
     }
     // Update UI headers
     document.getElementById('lobbyCodeDisp').textContent=savedRoom;
@@ -677,10 +675,12 @@ function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textConte
 
 // ===== STATE =====
 let myId='p_'+Math.random().toString(36).substr(2,9);
+let roomRef=null;
+let chatRef=null;
 let myName='',roomCode='',isHost=false,selectedGame='trivia';
 let scores={};
-let roomListener=null;
-let chatListener=null;
+
+
 let gameTimerInterval=null;
 let drawSyncInterval=null;
 let drawCtx=null;
@@ -738,7 +738,7 @@ window.createRoom=async function(){
   localStorage.setItem('pn_host','true');
   scores={};
   scores[myId]={name:myName,score:0,host:true};
-  await set(ref(db,'rooms/'+roomCode),{
+  await db.ref('rooms/'+roomCode).set({
     host:myId,game:'trivia',status:'lobby',
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
@@ -752,7 +752,7 @@ window.selectGame=function(g){
   selectedGame=g;
   document.querySelectorAll('.game-opt').forEach(el=>el.classList.remove('active'));
   document.getElementById('go-'+g).classList.add('active');
-  update(ref(db,'rooms/'+roomCode),{game:g});
+  db.ref('rooms/'+roomCode).update({game:g});
 };
 
 function setupLobbyHost(){
@@ -792,10 +792,10 @@ window.joinRoom=async function(){
   localStorage.setItem('pn_id',myId);
   localStorage.setItem('pn_host','false');
   localStorage.setItem('pn_room',code);
-  const snap=await get(ref(db,'rooms/'+code));
+  const snap=await db.ref('rooms/'+code).once('value');
   if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
   scores[myId]={name:myName,score:0};
-  await set(ref(db,'rooms/'+code+'/players/'+myId),{name:myName,score:0});
+  await db.ref('rooms/'+code+'/players/'+myId).set({name:myName,score:0});
   document.getElementById('lobbyCodeDisp2').textContent=code;
   showScreen('lobbyPlayer');
   listenRoom();
@@ -806,9 +806,9 @@ window.joinRoom=async function(){
 window.leaveRoom=async function(){
   clearAllTimers();
   localStorage.removeItem('pn_name');localStorage.removeItem('pn_id');localStorage.removeItem('pn_room');localStorage.removeItem('pn_host');
-  if(roomListener){off(ref(db,'rooms/'+roomCode));roomListener=null;}
-  if(isHost)await remove(ref(db,'rooms/'+roomCode));
-  else await remove(ref(db,'rooms/'+roomCode+'/players/'+myId));
+  if(roomRef){roomRef.off('value');roomRef=null;}
+  if(isHost)await db.ref('rooms/'+roomCode).remove();
+  else await db.ref('rooms/'+roomCode+'/players/'+myId).remove();
   scores={};roomCode='';isHost=false;
   goTo('home');
 };
@@ -818,13 +818,13 @@ window.confirmLeave=function(){
 };
 
 window.kickPlayer=function(pid){
-  remove(ref(db,'rooms/'+roomCode+'/players/'+pid));
+  db.ref('rooms/'+roomCode+'/players/'+pid).remove();
 };
 
 // ===== LISTEN =====
 async function cleanDuplicates(){
   // Remove players that have same name but different ID (from page refresh)
-  const snap = await get(ref(db,'rooms/'+roomCode));
+  const snap = await db.ref('rooms/'+roomCode).once('value');
   if(!snap.exists()) return;
   const room = snap.val();
   const players = room.players || {};
@@ -832,15 +832,16 @@ async function cleanDuplicates(){
   for(const [id, p] of Object.entries(players)){
     if(seen[p.name] && id !== myId && seen[p.name] !== myId){
       // Remove old duplicate
-      await remove(ref(db,'rooms/'+roomCode+'/players/'+seen[p.name]));
+      await db.ref('rooms/'+roomCode+'/players/'+seen[p.name]).remove();
     }
     seen[p.name] = id;
   }
 }
 
 function listenRoom(){
-  if(roomListener){off(ref(db,'rooms/'+roomCode));}
-  onValue(ref(db,'rooms/'+roomCode),snap=>{
+  if(roomRef){roomRef.off('value');}
+  roomRef=db.ref('rooms/'+roomCode);
+  roomRef.on('value', snap=>{
     if(!snap.exists()){
       if(roomCode){toast(t('roomNotFound'),'red');goTo('home');}
       return;
@@ -866,7 +867,7 @@ function listenRoom(){
     else if(room.status==='draw')loadDraw(room);
     else if(room.status==='results')showResults(room);
   });
-  roomListener=true;
+  
 }
 
 function renderLobbyPlayers(room){
@@ -919,7 +920,7 @@ function renderHostControls(containerId,extraBtns=''){
 
 window.confirmEndGame=function(){
   if(confirm(lang==='he'?'לסיים את המשחק?':'End the game?'))
-    update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:getScoresFlat()});
+    db.ref('rooms/'+roomCode).update({status:'results',finalScores:getScoresFlat()});
 };
 
 function getScoresFlat(){
@@ -930,8 +931,8 @@ function getScoresFlat(){
 
 // ===== CHAT =====
 function listenChat(game){
-  if(chatListener){off(ref(db,'rooms/'+roomCode+'/chat'));chatListener=null;}
-  onValue(ref(db,'rooms/'+roomCode+'/chat'),snap=>{
+  if(chatListener){db.ref('rooms/'+roomCode+'/chat').off();chatListener=null;}
+  db.ref('rooms/'+roomCode+'/chat').on(\'value\', snap=>{
     if(!snap.exists())return;
     const msgs=Object.values(snap.val()).sort((a,b)=>a.ts-b.ts).slice(-50);
     const container=document.getElementById(game+'ChatMsgs');
@@ -942,19 +943,19 @@ function listenChat(game){
       </div>`).join('');
     container.scrollTop=container.scrollHeight;
   });
-  chatListener=true;
+  
 }
 
 window.sendChat=function(game){
   const inp=document.getElementById(game+'ChatInput');
   const text=inp.value.trim();
   if(!text)return;
-  push(ref(db,'rooms/'+roomCode+'/chat'),{name:myName,text,ts:Date.now()});
+  db.ref('rooms/'+roomCode+'/chat').push({name:myName,text,ts:Date.now()});
   inp.value='';
 };
 
 function systemMsg(text){
-  push(ref(db,'rooms/'+roomCode+'/chat'),{system:true,text,ts:Date.now()});
+  db.ref('rooms/'+roomCode+'/chat').push({system:true,text,ts:Date.now()});
 }
 
 // ===== START GAME =====
@@ -1012,7 +1013,7 @@ function initTrivia(){
   const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
   const initSc={};Object.keys(scores).forEach(id=>initSc[id]=0);
   const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
-  update(ref(db,'rooms/'+roomCode),{
+  db.ref('rooms/'+roomCode).update({
     status:'trivia',triviaQuestions:qs,triviaIndex:0,
     triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),
     players,chat:null
@@ -1088,7 +1089,7 @@ function loadTrivia(room){
 
 window.submitTrivia=async function(answer){
   if(!roomCode)return;
-  const snap=await get(ref(db,'rooms/'+roomCode));
+  const snap=await db.ref('rooms/'+roomCode).once('value');
   if(!snap.exists())return;
   const room=snap.val();
   if(!room||room.status!=='trivia')return;
@@ -1099,16 +1100,16 @@ window.submitTrivia=async function(answer){
   const pts=ok?Math.max(50,100+(20-elapsed)*5):0;
   if(ok)playSound('correct');else playSound('wrong');
   // Save answer
-  await update(ref(db,'rooms/'+roomCode+'/triviaAnswers'),{[myId]:answer});
+  await db.ref('rooms/'+roomCode+'/triviaAnswers').update({[myId]:answer});
   // Save score
   if(pts>0){
     const cur=(room.triviaScores||{})[myId]||0;
-    await update(ref(db,'rooms/'+roomCode+'/triviaScores'),{[myId]:cur+pts});
-    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:cur+pts});
+    await db.ref('rooms/'+roomCode+'/triviaScores').update({[myId]:cur+pts});
+    await db.ref('rooms/'+roomCode+'/players/'+myId).update({score:cur+pts});
   }
   // Host checks if all answered
   if(isHost){
-    const snap2=await get(ref(db,'rooms/'+roomCode));
+    const snap2=await db.ref('rooms/'+roomCode).once('value');
     const r2=snap2.val();
     const answered=Object.keys(r2.triviaAnswers||{}).length;
     const total=Object.keys(r2.players||{}).length;
@@ -1119,22 +1120,22 @@ window.submitTrivia=async function(answer){
 };
 
 window.advanceTriviaManual=function(){
-  get(ref(db,'rooms/'+roomCode)).then(snap=>{if(snap.exists())advanceTrivia(snap.val());});
+  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>{if(snap.exists())advanceTrivia(snap.val());});
 };
 
 async function advanceTrivia(room){
   clearInterval(gameTimerInterval);
   // Re-fetch to get latest data
-  const snap=await get(ref(db,'rooms/'+roomCode));
+  const snap=await db.ref('rooms/'+roomCode).once('value');
   if(!snap.exists())return;
   const r=snap.val();
   const next=(r.triviaIndex||0)+1;
   if(next>=(r.triviaQuestions||[]).length){
     const fs={};
     Object.entries(r.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
-    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
   } else {
-    await update(ref(db,'rooms/'+roomCode),{triviaIndex:next,triviaAnswers:{},triviaStart:Date.now()});
+    await db.ref('rooms/'+roomCode).update({triviaIndex:next,triviaAnswers:{},triviaStart:Date.now()});
   }
 }
 
@@ -1175,7 +1176,7 @@ function initForbidden(){
   const words=(FW[lang]||FW.en).sort(()=>Math.random()-0.5);
   const initSc={};players.forEach(id=>initSc[id]=0);
   const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-  update(ref(db,'rooms/'+roomCode),{
+  db.ref('rooms/'+roomCode).update({
     status:'forbidden',forbWords:words,forbIndex:0,
     forbDescriber:players[0],forbScores:initSc,forbStart:Date.now(),
     forbRound:1,players:ps,forbGuessed:{},chat:null
@@ -1234,7 +1235,7 @@ window.submitForbiddenGuess=async function(){
   const inp=document.getElementById('forbiddenGuessInp');
   const guess=inp.value.trim();
   if(!guess)return;
-  const snap=await get(ref(db,'rooms/'+roomCode));
+  const snap=await db.ref('rooms/'+roomCode).once('value');
   const room=snap.val();
   if(!room||room.status!=='forbidden')return;
   if((room.forbGuessed||{})[myId])return;
@@ -1244,11 +1245,11 @@ window.submitForbiddenGuess=async function(){
     const fSc={...(room.forbScores||{})};
     fSc[myId]=(fSc[myId]||0)+150;
     fSc[room.forbDescriber]=(fSc[room.forbDescriber]||0)+100;
-    await update(ref(db,'rooms/'+roomCode),{
+    await db.ref('rooms/'+roomCode).update({
       forbScores:fSc,
       forbGuessed:{...(room.forbGuessed||{}),[myId]:true}
     });
-    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:fSc[myId]});
+    await db.ref('rooms/'+roomCode+'/players/'+myId).update({score:fSc[myId]});
     inp.value=t('guessedCorrect');inp.disabled=true;
     systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
     // Check all guessed
@@ -1261,7 +1262,7 @@ window.submitForbiddenGuess=async function(){
 };
 
 window.advanceForbiddenManual=function(){
-  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceForbidden(snap.val()));
+  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>advanceForbidden(snap.val()));
 };
 
 async function advanceForbidden(room){
@@ -1272,9 +1273,9 @@ async function advanceForbidden(room){
   const ni=(room.forbIndex||0)+1;
   if(ni>=(room.forbWords||[]).length||(room.forbRound||1)>=Math.ceil((room.forbWords||[]).length/players.length)){
     const fs={};Object.entries(room.forbScores||{}).forEach(([id,s])=>fs[id]=s);
-    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
   } else {
-    await update(ref(db,'rooms/'+roomCode),{
+    await db.ref('rooms/'+roomCode).update({
       forbIndex:ni,forbDescriber:nextDesc,forbStart:Date.now(),
       forbRound:(room.forbRound||1)+1,forbGuessed:{}
     });
@@ -1296,7 +1297,7 @@ function initDraw(){
   const words=(DW[lang]||DW.en).sort(()=>Math.random()-0.5);
   const initSc={};players.forEach(id=>initSc[id]=0);
   const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-  update(ref(db,'rooms/'+roomCode),{
+  db.ref('rooms/'+roomCode).update({
     status:'draw',drawWords:words,drawIndex:0,
     drawDrawer:players[0],drawScores:initSc,drawStart:Date.now(),
     drawRound:1,players:ps,drawGuessed:{},drawCanvas:null,chat:null
@@ -1393,7 +1394,7 @@ function setupCanvas(canvas){
 function syncCanvas(){
   drawLastSync=Date.now();
   const canvas=document.getElementById('drawCanvas');
-  update(ref(db,'rooms/'+roomCode),{drawCanvas:canvas.toDataURL('image/jpeg',0.35)});
+  db.ref('rooms/'+roomCode).update({drawCanvas:canvas.toDataURL('image/jpeg',0.35)});
 }
 
 window.setClr=function(c){drawColor=c;document.querySelectorAll('.clr-btn').forEach(b=>b.classList.toggle('active',b.dataset.c===c));};
@@ -1406,7 +1407,7 @@ window.checkDrawGuess=async function(submit=false){
   if(!inp||inp.disabled)return;
   const guess=inp.value.trim();
   if(!guess)return;
-  const snap=await get(ref(db,'rooms/'+roomCode));
+  const snap=await db.ref('rooms/'+roomCode).once('value');
   const room=snap.val();
   if(!room||room.status!=='draw')return;
   if((room.drawGuessed||{})[myId])return;
@@ -1418,11 +1419,11 @@ window.checkDrawGuess=async function(submit=false){
     const dSc={...(room.drawScores||{})};
     dSc[myId]=(dSc[myId]||0)+pts;
     dSc[room.drawDrawer]=(dSc[room.drawDrawer]||0)+80;
-    await update(ref(db,'rooms/'+roomCode),{
+    await db.ref('rooms/'+roomCode).update({
       drawScores:dSc,
       drawGuessed:{...(room.drawGuessed||{}),[myId]:true}
     });
-    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:dSc[myId]});
+    await db.ref('rooms/'+roomCode+'/players/'+myId).update({score:dSc[myId]});
     inp.value=t('guessedCorrect');inp.disabled=true;
     systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
     const allGuessers=Object.keys(room.players||{}).filter(id=>id!==room.drawDrawer);
@@ -1432,7 +1433,7 @@ window.checkDrawGuess=async function(submit=false){
 };
 
 window.advanceDrawManual=function(){
-  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceDraw(snap.val()));
+  db.ref('rooms/'+roomCode).once(\'value\').then(snap=>advanceDraw(snap.val()));
 };
 
 async function advanceDraw(room){
@@ -1443,9 +1444,9 @@ async function advanceDraw(room){
   const ni=(room.drawIndex||0)+1;
   if(ni>=players.length*2||(room.drawRound||1)>=players.length*2){
     const fs={};Object.entries(room.drawScores||{}).forEach(([id,s])=>fs[id]=s);
-    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
   } else {
-    await update(ref(db,'rooms/'+roomCode),{
+    await db.ref('rooms/'+roomCode).update({
       drawIndex:ni,drawDrawer:nextDrawer,drawStart:Date.now(),
       drawRound:(room.drawRound||1)+1,drawGuessed:{},drawCanvas:null
     });
@@ -1487,7 +1488,7 @@ function showResults(room){
 window.backToLobby=async function(){
   if(isHost){
     const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-    await update(ref(db,'rooms/'+roomCode),{
+    await db.ref('rooms/'+roomCode).update({
       status:'lobby',triviaAnswers:null,triviaIndex:0,
       drawCanvas:null,finalScores:null,chat:null,players:ps
     });
