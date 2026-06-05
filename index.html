@@ -13,6 +13,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+// Prevent pull-to-refresh on mobile
+var lastY=0;
+document.addEventListener('touchstart',function(e){lastY=e.touches[0].clientY;},{passive:false});
+document.addEventListener('touchmove',function(e){
+  var y=e.touches[0].clientY;
+  if(document.scrollingElement.scrollTop===0&&y>lastY){e.preventDefault();}
+  lastY=y;
+},{passive:false});
+</script>
 <style>
 :root{
   --gold:#C9A84C;--gold-dim:#8A6A2A;--gold-light:#F0C060;
@@ -21,7 +31,7 @@
   --green:#4CAF7A;--red:#E05050;--blue:#4A8FD4;--purple:#9B59B6;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;direction:rtl;overflow-x:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;direction:rtl;overflow-x:hidden;overscroll-behavior-y:contain;}
 body.ltr{direction:ltr;}
 
 /* ===== SCREENS ===== */
@@ -632,18 +642,14 @@ window.shareVia=function(platform){
 
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
-  // Share buttons
-  document.getElementById('btn-wa').addEventListener('click', function(){shareVia('whatsapp');});
-  document.getElementById('btn-tg').addEventListener('click', function(){shareVia('telegram');});
-  document.getElementById('btn-cp').addEventListener('click', function(){shareVia('copy');});
-  document.getElementById('btn-sh').addEventListener('click', function(){shareVia('native');});
   // Restore session on reload
   (function restoreSession(){
   var savedId=localStorage.getItem('pn_id');
   var savedName=localStorage.getItem('pn_name');
   var savedRoom=localStorage.getItem('pn_room');
   var savedHost=localStorage.getItem('pn_host');
-  if(!savedId||!savedName||!savedRoom) return;
+  console.log('restoreSession: id='+savedId+' name='+savedName+' room='+savedRoom+' host='+savedHost);
+  if(!savedId||!savedName||!savedRoom){console.log('No session data'); return;}
   myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
   db.ref('rooms/'+savedRoom).once('value').then(function(snap){
     if(!snap.exists()){
@@ -770,11 +776,17 @@ window.selectGame=function(g){
 function setupLobbyHost(){
   document.getElementById('lobbyCode').textContent=roomCode;
   document.getElementById('lobbyCodeDisp').textContent=roomCode;
-  // Share buttons - use addEventListener to avoid module scope issues
-  const btnWa=document.getElementById('btn-wa');
-  const btnTg=document.getElementById('btn-tg');
-  const btnCp=document.getElementById('btn-cp');
-  const btnSh=document.getElementById('btn-sh');
+  // Share buttons - re-attach every time lobby is shown
+  var btnWa=document.getElementById('btn-wa');
+  var btnTg=document.getElementById('btn-tg');
+  var btnCp=document.getElementById('btn-cp');
+  var btnSh=document.getElementById('btn-sh');
+  if(btnWa){
+    btnWa.onclick=function(){shareVia('whatsapp');};
+    btnTg.onclick=function(){shareVia('telegram');};
+    btnCp.onclick=function(){shareVia('copy');};
+    btnSh.onclick=function(){shareVia('native');};
+  }
   // Set hidden proxy buttons for share (cross module boundary)
 
   // QR
