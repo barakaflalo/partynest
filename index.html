@@ -671,11 +671,15 @@ document.addEventListener('DOMContentLoaded', function() {
       try{document.getElementById('lobbyCodeDisp').textContent=savedRoom;}catch(e){}
       try{document.getElementById('lobbyCodeDisp2').textContent=savedRoom;}catch(e){}
       try{document.getElementById('lobbyCode').textContent=savedRoom;}catch(e){}
+      console.log('Calling listenRoom now...');
+      setTimeout(function(){
       try{
         listenRoom();
       }catch(err){
         console.error('listenRoom failed:',err);
+        goTo('home');
       }
+      },300);
     }).catch(function(err){
       console.error('restoreSession failed:',err);
       localStorage.removeItem('pn_id');
@@ -768,7 +772,9 @@ window.createRoom=async function(){
   localStorage.setItem('pn_host','true');
   scores={};
   scores[myId]={name:myName,score:0,host:true};
-  await db.ref('rooms/'+roomCode).set({
+  var roomDbRef = db.ref('rooms/'+roomCode);
+  // Don't delete room on disconnect - host can rejoin
+  await roomDbRef.set({
     host:myId,game:'trivia',status:'lobby',
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
