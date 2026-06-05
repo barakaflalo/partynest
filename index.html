@@ -263,10 +263,15 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <div style="font-size:0.72rem;color:var(--text-dim);" data-i="shareCode">שתף קוד זה עם השחקנים</div>
     </div>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:4px 0;">
-      <button id="btn-wa" style="background:#25D366;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">💬 WhatsApp</button>
-      <button id="btn-tg" style="background:#2CA5E0;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">✈️ Telegram</button>
-      <button id="btn-cp" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">🔗 העתק</button>
-      <button id="btn-sh" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">📤 שתף</button>
+      <button id="btn-wa" style="background:#25D366;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareWa').click()">💬 WhatsApp</button>
+      <button id="btn-tg" style="background:#2CA5E0;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareTg').click()">✈️ Telegram</button>
+      <button id="btn-cp" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareCp').click()">🔗 העתק</button>
+      <button id="btn-sh" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;" onclick="document.getElementById('_shareSh').click()">📤 שתף</button>
+      <!-- Hidden proxy buttons set by module -->
+      <button id="_shareWa" style="display:none"></button>
+      <button id="_shareTg" style="display:none"></button>
+      <button id="_shareCp" style="display:none"></button>
+      <button id="_shareSh" style="display:none"></button>
     </div>
     <div class="lobby-players">
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
@@ -631,32 +636,40 @@ window.shareVia=function(platform){
   const savedName=localStorage.getItem('pn_name');
   const savedRoom=localStorage.getItem('pn_room');
   const savedHost=localStorage.getItem('pn_host');
-  if(savedId&&savedName&&savedRoom){
-    myId=savedId;
-    myName=savedName;
-    roomCode=savedRoom;
-    isHost=savedHost==='true';
-    // Try to rejoin
-    get(ref(db,'rooms/'+savedRoom)).then(snap=>{
-      if(!snap.exists()){
-        localStorage.removeItem('pn_name');localStorage.removeItem('pn_id');localStorage.removeItem('pn_room');localStorage.removeItem('pn_host');
-        return;
+  if(!savedId||!savedName||!savedRoom) return;
+  myId=savedId;
+  myName=savedName;
+  roomCode=savedRoom;
+  isHost=savedHost==='true';
+  get(ref(db,'rooms/'+savedRoom)).then(async snap=>{
+    if(!snap.exists()){
+      // Room gone - clear and stay on home
+      localStorage.removeItem('pn_name');
+      localStorage.removeItem('pn_id');
+      localStorage.removeItem('pn_room');
+      localStorage.removeItem('pn_host');
+      roomCode=''; return;
+    }
+    const room=snap.val();
+    const myPrevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
+    // Remove ALL entries with same name (cleanup duplicates)
+    if(room.players){
+      for(const [id,p] of Object.entries(room.players)){
+        if(p.name===myName && id!==myId){
+          await remove(ref(db,'rooms/'+savedRoom+'/players/'+id));
+        }
       }
-      const room=snap.val();
-      // If not in players list, re-add
-      // Always update player entry to prevent duplicates from old IDs
-      if(!isHost){
-        set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:(room.players&&room.players[myId])?room.players[myId].score||0:0});
-      }
-      if(isHost){
-        document.getElementById('lobbyCodeDisp').textContent=savedRoom;
-        setupLobbyHost();
-      } else {
-        document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
-      }
-      cleanDuplicates().then(()=>listenRoom());
-    });
-  }
+    }
+    // Re-add self with preserved score
+    if(!isHost){
+      await set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:myPrevScore});
+    }
+    // Update UI headers
+    document.getElementById('lobbyCodeDisp').textContent=savedRoom;
+    document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
+    // Let listenRoom handle correct screen based on room.status
+    listenRoom();
+  });
 })();
 applyT();
 };
@@ -750,10 +763,15 @@ function setupLobbyHost(){
   const btnTg=document.getElementById('btn-tg');
   const btnCp=document.getElementById('btn-cp');
   const btnSh=document.getElementById('btn-sh');
-  if(btnWa){btnWa.onclick=()=>shareVia('whatsapp');}
-  if(btnTg){btnTg.onclick=()=>shareVia('telegram');}
-  if(btnCp){btnCp.onclick=()=>shareVia('copy');}
-  if(btnSh){btnSh.onclick=()=>shareVia('native');}
+  // Set hidden proxy buttons for share (cross module boundary)
+  const _wa=document.getElementById('_shareWa');
+  const _tg=document.getElementById('_shareTg');
+  const _cp=document.getElementById('_shareCp');
+  const _sh=document.getElementById('_shareSh');
+  if(_wa)_wa.onclick=()=>shareVia('whatsapp');
+  if(_tg)_tg.onclick=()=>shareVia('telegram');
+  if(_cp)_cp.onclick=()=>shareVia('copy');
+  if(_sh)_sh.onclick=()=>shareVia('native');
   // QR
   document.getElementById('qrcode').innerHTML='';
   const url=window.location.href.split('?')[0]+'?join='+roomCode;
