@@ -260,7 +260,13 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <div class="lobby-code-label" data-i="roomCode">קוד החדר</div>
       <div class="lobby-code" id="lobbyCode">----</div>
       <div class="qr-wrap"><div id="qrcode"></div></div>
-      <div style="font-size:0.72rem;color:var(--text-dim);" data-i="shareCode">שתף קוד זה עם השחקנים</div>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:8px;" data-i="shareCode">שתף קוד זה עם השחקנים</div>
+    <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:6px;">
+      <button onclick="shareVia('whatsapp')" style="background:#25D366;border:none;color:#FFF;padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">💬 WhatsApp</button>
+      <button onclick="shareVia('telegram')" style="background:#2CA5E0;border:none;color:#FFF;padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">✈️ Telegram</button>
+      <button onclick="shareVia('copy')" id="copyLinkBtn" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">🔗 העתק קישור</button>
+      <button onclick="shareVia('native')" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">📤 שתף</button>
+    </div>
     </div>
     <div class="lobby-players">
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
@@ -595,7 +601,66 @@ window.setLang=function(l){
   const rtl=['he','ar'].includes(l);
   document.body.dir=rtl?'rtl':'ltr';
   document.body.classList.toggle('ltr',!rtl);
-  applyT();
+  
+window.shareVia=function(platform){
+  const url=window.location.href.split('?')[0]+'?join='+roomCode;
+  const msg=(lang==='he'?'הצטרף למשחק PartyNest! קוד: ':lang==='ar'?'انضم للعبة PartyNest! الكود: ':'Join PartyNest game! Code: ')+roomCode+'\n'+url;
+  if(platform==='whatsapp'){
+    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  } else if(platform==='telegram'){
+    window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(lang==='he'?'הצטרף למשחק! קוד: '+roomCode:'Join the game! Code: '+roomCode),'_blank');
+  } else if(platform==='copy'){
+    navigator.clipboard.writeText(url).then(()=>{
+      const btn=document.getElementById('copyLinkBtn');
+      btn.textContent='✅ הועתק!';
+      setTimeout(()=>btn.textContent='🔗 העתק קישור',2000);
+    }).catch(()=>{
+      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+    });
+  } else if(platform==='native'){
+    if(navigator.share){
+      navigator.share({title:'PartyNest',text:msg,url}).catch(()=>{});
+    } else {
+      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+    }
+  }
+};
+
+// Restore session on reload
+(function restoreSession(){
+  const savedId=sessionStorage.getItem('pn_id');
+  const savedName=sessionStorage.getItem('pn_name');
+  const savedRoom=sessionStorage.getItem('pn_room');
+  const savedHost=sessionStorage.getItem('pn_host');
+  if(savedId&&savedName&&savedRoom){
+    myId=savedId;
+    myName=savedName;
+    roomCode=savedRoom;
+    isHost=savedHost==='true';
+    // Try to rejoin
+    get(ref(db,'rooms/'+savedRoom)).then(snap=>{
+      if(!snap.exists()){
+        sessionStorage.clear();
+        return;
+      }
+      const room=snap.val();
+      // If not in players list, re-add
+      if(!room.players||!room.players[myId]){
+        if(!isHost){
+          set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:0});
+        }
+      }
+      if(isHost){
+        document.getElementById('lobbyCodeDisp').textContent=savedRoom;
+        setupLobbyHost();
+      } else {
+        document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
+      }
+      listenRoom();
+    });
+  }
+})();
+applyT();
 };
 function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
 
@@ -657,6 +722,9 @@ window.createRoom=async function(){
   if(!name){document.getElementById('createErr').textContent=t('nameRequired');return;}
   myName=name;isHost=true;
   roomCode=Math.floor(1000+Math.random()*9000).toString();
+  sessionStorage.setItem('pn_name',myName);
+  sessionStorage.setItem('pn_id',myId);
+  sessionStorage.setItem('pn_host','true');
   scores={};
   scores[myId]={name:myName,score:0,host:true};
   await set(ref(db,'rooms/'+roomCode),{
@@ -664,6 +732,7 @@ window.createRoom=async function(){
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
   });
+  sessionStorage.setItem('pn_room',roomCode);
   setupLobbyHost();
   listenRoom();
 };
@@ -681,7 +750,7 @@ function setupLobbyHost(){
   // QR
   document.getElementById('qrcode').innerHTML='';
   const url=window.location.href.split('?')[0]+'?join='+roomCode;
-  try{new QRCode(document.getElementById('qrcode'),{text:url,width:90,height:90,colorDark:'#0A0A0A',colorLight:'#F0C060'});}
+  try{new QRCode(document.getElementById('qrcode'),{text:url,width:150,height:150,colorDark:'#0A0A0A',colorLight:'#FFFFFF'});}
   catch(e){document.getElementById('qrcode').textContent=roomCode;}
   showScreen('lobbyHost');
 }
@@ -694,6 +763,10 @@ window.joinRoom=async function(){
   if(!code||code.length!==4){document.getElementById('joinErr').textContent=t('codeRequired');return;}
   document.getElementById('joinErr').textContent=t('connecting');
   myName=name;isHost=false;roomCode=code;
+  sessionStorage.setItem('pn_name',myName);
+  sessionStorage.setItem('pn_id',myId);
+  sessionStorage.setItem('pn_host','false');
+  sessionStorage.setItem('pn_room',code);
   const snap=await get(ref(db,'rooms/'+code));
   if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
   scores[myId]={name:myName,score:0};
@@ -707,6 +780,7 @@ window.joinRoom=async function(){
 // ===== LEAVE =====
 window.leaveRoom=async function(){
   clearAllTimers();
+  sessionStorage.clear();
   if(roomListener){off(ref(db,'rooms/'+roomCode));roomListener=null;}
   if(isHost)await remove(ref(db,'rooms/'+roomCode));
   else await remove(ref(db,'rooms/'+roomCode+'/players/'+myId));
