@@ -260,13 +260,13 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
       <div class="lobby-code-label" data-i="roomCode">קוד החדר</div>
       <div class="lobby-code" id="lobbyCode">----</div>
       <div class="qr-wrap"><div id="qrcode"></div></div>
-      <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:8px;" data-i="shareCode">שתף קוד זה עם השחקנים</div>
-    <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:6px;">
-      <button onclick="shareVia('whatsapp')" style="background:#25D366;border:none;color:#FFF;padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">💬 WhatsApp</button>
-      <button onclick="shareVia('telegram')" style="background:#2CA5E0;border:none;color:#FFF;padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">✈️ Telegram</button>
-      <button onclick="shareVia('copy')" id="copyLinkBtn" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">🔗 העתק קישור</button>
-      <button onclick="shareVia('native')" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:6px 12px;border-radius:10px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:Heebo,sans-serif;">📤 שתף</button>
+      <div style="font-size:0.72rem;color:var(--text-dim);" data-i="shareCode">שתף קוד זה עם השחקנים</div>
     </div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:4px 0;">
+      <button id="btn-wa" style="background:#25D366;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">💬 WhatsApp</button>
+      <button id="btn-tg" style="background:#2CA5E0;border:none;color:#FFF;padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">✈️ Telegram</button>
+      <button id="btn-cp" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">🔗 העתק</button>
+      <button id="btn-sh" style="background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:9px 14px;border-radius:12px;cursor:pointer;font-size:0.85rem;font-weight:700;font-family:Heebo,sans-serif;flex:1;min-width:110px;">📤 שתף</button>
     </div>
     <div class="lobby-players">
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
@@ -611,9 +611,8 @@ window.shareVia=function(platform){
     window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(lang==='he'?'הצטרף למשחק! קוד: '+roomCode:'Join the game! Code: '+roomCode),'_blank');
   } else if(platform==='copy'){
     navigator.clipboard.writeText(url).then(()=>{
-      const btn=document.getElementById('copyLinkBtn');
-      btn.textContent='✅ הועתק!';
-      setTimeout(()=>btn.textContent='🔗 העתק קישור',2000);
+      const btn=document.getElementById('btn-cp');
+      if(btn){btn.textContent='✅ הועתק!';setTimeout(()=>btn.textContent='🔗 העתק',2000);}
     }).catch(()=>{
       prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
     });
@@ -628,10 +627,10 @@ window.shareVia=function(platform){
 
 // Restore session on reload
 (function restoreSession(){
-  const savedId=sessionStorage.getItem('pn_id');
-  const savedName=sessionStorage.getItem('pn_name');
-  const savedRoom=sessionStorage.getItem('pn_room');
-  const savedHost=sessionStorage.getItem('pn_host');
+  const savedId=localStorage.getItem('pn_id');
+  const savedName=localStorage.getItem('pn_name');
+  const savedRoom=localStorage.getItem('pn_room');
+  const savedHost=localStorage.getItem('pn_host');
   if(savedId&&savedName&&savedRoom){
     myId=savedId;
     myName=savedName;
@@ -640,15 +639,14 @@ window.shareVia=function(platform){
     // Try to rejoin
     get(ref(db,'rooms/'+savedRoom)).then(snap=>{
       if(!snap.exists()){
-        sessionStorage.clear();
+        localStorage.removeItem('pn_name');localStorage.removeItem('pn_id');localStorage.removeItem('pn_room');localStorage.removeItem('pn_host');
         return;
       }
       const room=snap.val();
       // If not in players list, re-add
-      if(!room.players||!room.players[myId]){
-        if(!isHost){
-          set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:0});
-        }
+      // Always update player entry to prevent duplicates from old IDs
+      if(!isHost){
+        set(ref(db,'rooms/'+savedRoom+'/players/'+myId),{name:myName,score:(room.players&&room.players[myId])?room.players[myId].score||0:0});
       }
       if(isHost){
         document.getElementById('lobbyCodeDisp').textContent=savedRoom;
@@ -656,7 +654,7 @@ window.shareVia=function(platform){
       } else {
         document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
       }
-      listenRoom();
+      cleanDuplicates().then(()=>listenRoom());
     });
   }
 })();
@@ -722,9 +720,9 @@ window.createRoom=async function(){
   if(!name){document.getElementById('createErr').textContent=t('nameRequired');return;}
   myName=name;isHost=true;
   roomCode=Math.floor(1000+Math.random()*9000).toString();
-  sessionStorage.setItem('pn_name',myName);
-  sessionStorage.setItem('pn_id',myId);
-  sessionStorage.setItem('pn_host','true');
+  localStorage.setItem('pn_name',myName);
+  localStorage.setItem('pn_id',myId);
+  localStorage.setItem('pn_host','true');
   scores={};
   scores[myId]={name:myName,score:0,host:true};
   await set(ref(db,'rooms/'+roomCode),{
@@ -732,7 +730,7 @@ window.createRoom=async function(){
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
   });
-  sessionStorage.setItem('pn_room',roomCode);
+  localStorage.setItem('pn_room',roomCode);
   setupLobbyHost();
   listenRoom();
 };
@@ -747,6 +745,15 @@ window.selectGame=function(g){
 function setupLobbyHost(){
   document.getElementById('lobbyCode').textContent=roomCode;
   document.getElementById('lobbyCodeDisp').textContent=roomCode;
+  // Share buttons - use addEventListener to avoid module scope issues
+  const btnWa=document.getElementById('btn-wa');
+  const btnTg=document.getElementById('btn-tg');
+  const btnCp=document.getElementById('btn-cp');
+  const btnSh=document.getElementById('btn-sh');
+  if(btnWa){btnWa.onclick=()=>shareVia('whatsapp');}
+  if(btnTg){btnTg.onclick=()=>shareVia('telegram');}
+  if(btnCp){btnCp.onclick=()=>shareVia('copy');}
+  if(btnSh){btnSh.onclick=()=>shareVia('native');}
   // QR
   document.getElementById('qrcode').innerHTML='';
   const url=window.location.href.split('?')[0]+'?join='+roomCode;
@@ -763,10 +770,10 @@ window.joinRoom=async function(){
   if(!code||code.length!==4){document.getElementById('joinErr').textContent=t('codeRequired');return;}
   document.getElementById('joinErr').textContent=t('connecting');
   myName=name;isHost=false;roomCode=code;
-  sessionStorage.setItem('pn_name',myName);
-  sessionStorage.setItem('pn_id',myId);
-  sessionStorage.setItem('pn_host','false');
-  sessionStorage.setItem('pn_room',code);
+  localStorage.setItem('pn_name',myName);
+  localStorage.setItem('pn_id',myId);
+  localStorage.setItem('pn_host','false');
+  localStorage.setItem('pn_room',code);
   const snap=await get(ref(db,'rooms/'+code));
   if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
   scores[myId]={name:myName,score:0};
@@ -780,7 +787,7 @@ window.joinRoom=async function(){
 // ===== LEAVE =====
 window.leaveRoom=async function(){
   clearAllTimers();
-  sessionStorage.clear();
+  localStorage.removeItem('pn_name');localStorage.removeItem('pn_id');localStorage.removeItem('pn_room');localStorage.removeItem('pn_host');
   if(roomListener){off(ref(db,'rooms/'+roomCode));roomListener=null;}
   if(isHost)await remove(ref(db,'rooms/'+roomCode));
   else await remove(ref(db,'rooms/'+roomCode+'/players/'+myId));
@@ -797,6 +804,22 @@ window.kickPlayer=function(pid){
 };
 
 // ===== LISTEN =====
+async function cleanDuplicates(){
+  // Remove players that have same name but different ID (from page refresh)
+  const snap = await get(ref(db,'rooms/'+roomCode));
+  if(!snap.exists()) return;
+  const room = snap.val();
+  const players = room.players || {};
+  const seen = {};
+  for(const [id, p] of Object.entries(players)){
+    if(seen[p.name] && id !== myId && seen[p.name] !== myId){
+      // Remove old duplicate
+      await remove(ref(db,'rooms/'+roomCode+'/players/'+seen[p.name]));
+    }
+    seen[p.name] = id;
+  }
+}
+
 function listenRoom(){
   if(roomListener){off(ref(db,'rooms/'+roomCode));}
   onValue(ref(db,'rooms/'+roomCode),snap=>{
