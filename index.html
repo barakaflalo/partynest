@@ -635,59 +635,44 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('btn-sh').addEventListener('click', function(){shareVia('native');});
   // Restore session on reload
   (function restoreSession(){
-  const savedId=localStorage.getItem('pn_id');
-  const savedName=localStorage.getItem('pn_name');
-  const savedRoom=localStorage.getItem('pn_room');
-  const savedHost=localStorage.getItem('pn_host');
+  var savedId=localStorage.getItem('pn_id');
+  var savedName=localStorage.getItem('pn_name');
+  var savedRoom=localStorage.getItem('pn_room');
+  var savedHost=localStorage.getItem('pn_host');
   if(!savedId||!savedName||!savedRoom) return;
-  myId=savedId;
-  myName=savedName;
-  roomCode=savedRoom;
-  isHost=savedHost==='true';
-  db.ref('rooms/'+savedRoom).once('value').then(async snap=>{
+  myId=savedId; myName=savedName; roomCode=savedRoom; isHost=(savedHost==='true');
+  db.ref('rooms/'+savedRoom).once('value').then(function(snap){
     if(!snap.exists()){
-      // Room gone - clear and stay on home
-      localStorage.removeItem('pn_name');
-      localStorage.removeItem('pn_id');
-      localStorage.removeItem('pn_room');
-      localStorage.removeItem('pn_host');
+      localStorage.removeItem('pn_id'); localStorage.removeItem('pn_name');
+      localStorage.removeItem('pn_room'); localStorage.removeItem('pn_host');
       roomCode=''; return;
     }
-    const room=snap.val();
-    const myPrevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
-    // Remove ALL entries with same name (cleanup duplicates)
-    // Remove ALL old entries with same name (from previous session)
+    var room=snap.val();
+    var prevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
+    // Remove duplicates with same name
+    var removes=[];
     if(room.players){
-      const removes=[];
-      Object.entries(room.players).forEach(([id,p])=>{
-        if(p.name===myName && id!==myId){
-          console.log('Removing duplicate:', id, p.name);
+      Object.keys(room.players).forEach(function(id){
+        if(room.players[id].name===myName && id!==myId){
           removes.push(db.ref('rooms/'+savedRoom+'/players/'+id).remove());
         }
       });
-      if(removes.length>0) await Promise.all(removes);
     }
-    // Re-add self with preserved score
-    if(!isHost){
-      await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore});
-    } else {
-      // For host - make sure host flag is set
-      if(!room.players || !room.players[myId]){
-        await db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:myPrevScore,host:true});
+    Promise.all(removes).then(function(){
+      if(isHost){
+        return db.ref('rooms/'+savedRoom+'/players/'+myId).update({name:myName,score:prevScore,host:true});
+      } else {
+        return db.ref('rooms/'+savedRoom+'/players/'+myId).set({name:myName,score:prevScore});
       }
-    }
-    // Update UI headers with room code everywhere
-    ['lobbyCodeDisp','lobbyCodeDisp2','lobbyCode',
-     'triviaCode','forbiddenCode','drawCode'].forEach(id=>{
-       const el=document.getElementById(id);
-       if(el) el.textContent=savedRoom;
+    }).then(function(){
+      document.getElementById('lobbyCodeDisp').textContent=savedRoom;
+      document.getElementById('lobbyCodeDisp2').textContent=savedRoom;
+      document.getElementById('lobbyCode').textContent=savedRoom;
+      if(isHost) setupLobbyHost();
+      listenRoom();
     });
-    // If host, reinitialize lobby UI
-    if(isHost) setupLobbyHost();
-    // Let listenRoom handle screen routing based on room.status
-    listenRoom();
   });
-  })();
+})();
   applyT();
 }); // end DOMContentLoaded
 };
