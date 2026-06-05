@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PartyNest — משחקים מרובי שחקנים</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --gold:#C9A84C;--gold-dim:#8A6A2A;--gold-light:#F0C060;
+  --bg:#0A0A0A;--dark:#111;--dark2:#1A1A1A;--dark3:#222;--dark4:#2A2A2A;
+  --text:#E8E0D0;--text-dim:#777;
+  --green:#4CAF7A;--red:#E05050;--blue:#4A8FD4;--purple:#9B59B6;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;direction:rtl;overflow-x:hidden;}
+body.ltr{direction:ltr;}
+
+/* ===== SCREENS ===== */
+.screen{display:none;min-height:100vh;flex-direction:column;}
+.screen.active{display:flex;}
+
+/* ===== HEADER ===== */
+.app-header{background:var(--dark);border-bottom:1px solid var(--gold-dim);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
+.header-logo{font-family:'Cinzel',serif;color:var(--gold);font-size:1rem;letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+.header-info{display:flex;align-items:center;gap:8px;}
+.room-pill{background:var(--dark3);border:1px solid var(--gold-dim);color:var(--gold);padding:4px 10px;border-radius:12px;font-family:'Cinzel',serif;font-size:0.85rem;letter-spacing:2px;}
+.leave-header-btn{background:var(--red);border:none;color:#FFF;padding:5px 12px;border-radius:10px;cursor:pointer;font-family:'Heebo',sans-serif;font-size:0.78rem;font-weight:700;}
+
+/* ===== GAME LAYOUT (2 panels) ===== */
+.game-layout{display:flex;gap:0;flex:1;overflow:hidden;}
+.game-main{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.game-sidebar{width:200px;background:var(--dark);border-right:1px solid var(--dark3);padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex-shrink:0;}
+body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
+@media(max-width:600px){
+  .game-layout{flex-direction:column;}
+  .game-sidebar{width:100%;border-right:none;border-top:1px solid var(--dark3);max-height:160px;}
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar-title{font-size:0.68rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:4px;}
+.sidebar-player{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:8px;background:var(--dark2);margin-bottom:4px;}
+.sidebar-player.me{background:#1A1500;border:1px solid var(--gold-dim);}
+.sidebar-player-name{font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;}
+.sidebar-player-pts{font-family:'Cinzel',serif;font-size:0.75rem;color:var(--gold);}
+.sidebar-kick{background:var(--red);border:none;color:#FFF;width:18px;height:18px;border-radius:4px;cursor:pointer;font-size:0.6rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.host-controls{background:var(--dark2);border:1px solid var(--gold-dim);border-radius:10px;padding:10px;}
+.host-ctrl-title{font-size:0.68rem;color:var(--gold);font-weight:700;margin-bottom:8px;}
+.host-ctrl-btn{width:100%;background:var(--dark3);border:1px solid #444;color:var(--text);padding:7px;border-radius:8px;cursor:pointer;font-family:'Heebo',sans-serif;font-size:0.78rem;margin-bottom:5px;text-align:center;}
+.host-ctrl-btn:hover{border-color:var(--gold-dim);}
+.host-ctrl-btn.danger{border-color:var(--red);color:var(--red);}
+.host-ctrl-btn.primary{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#0A0A0A;border:none;font-weight:700;}
+
+/* ===== CHAT ===== */
+.chat-box{background:var(--dark2);border:1px solid var(--dark3);border-radius:10px;overflow:hidden;}
+.chat-messages{padding:8px;height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;}
+.chat-msg{font-size:0.75rem;line-height:1.4;}
+.chat-msg .chat-name{font-weight:700;color:var(--gold);}
+.chat-msg.system{color:var(--text-dim);font-style:italic;}
+.chat-msg.correct-msg{color:var(--green);}
+.chat-input-row{display:flex;border-top:1px solid var(--dark3);}
+.chat-input{flex:1;background:none;border:none;color:var(--text);padding:7px 10px;font-family:'Heebo',sans-serif;font-size:0.82rem;outline:none;}
+.chat-send{background:var(--gold-dim);border:none;color:#0A0A0A;padding:7px 12px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:'Heebo',sans-serif;}
+
+/* ===== HOME ===== */
+.home-wrap{max-width:400px;margin:0 auto;padding:30px 20px;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;}
+.logo-wrap{text-align:center;}
+.logo-title{font-family:'Cinzel',serif;font-size:2.6rem;color:var(--gold);letter-spacing:3px;margin-top:12px;text-shadow:0 0 30px rgba(201,168,76,0.4);}
+.logo-tagline{font-size:0.8rem;color:var(--text-dim);letter-spacing:4px;margin-top:4px;}
+.home-btn{width:100%;padding:16px;border-radius:14px;font-family:'Heebo',sans-serif;font-size:1.05rem;font-weight:700;cursor:pointer;border:none;transition:all 0.2s;}
+.btn-gold{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#0A0A0A;}
+.btn-gold:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(201,168,76,0.35);}
+.btn-outline{background:var(--dark2);color:var(--gold);border:2px solid var(--gold-dim);}
+.btn-outline:hover{background:var(--dark3);}
+.lang-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.lang-pill{background:var(--dark3);border:1px solid #333;color:var(--text-dim);padding:5px 12px;border-radius:16px;cursor:pointer;font-size:0.8rem;font-family:'Heebo',sans-serif;transition:all 0.15s;}
+.lang-pill.active{border-color:var(--gold);color:var(--gold);background:var(--dark2);}
+.home-hint{text-align:center;color:var(--text-dim);font-size:0.75rem;line-height:1.6;}
+
+/* ===== ENTRY ===== */
+.entry-wrap{max-width:400px;margin:0 auto;padding:30px 20px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;}
+.entry-title{font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);text-align:center;}
+.entry-sub{text-align:center;color:var(--text-dim);font-size:0.85rem;}
+.big-input{background:var(--dark2);border:2px solid var(--gold-dim);color:var(--text);padding:14px 18px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:1rem;width:100%;outline:none;text-align:center;transition:border-color 0.2s;}
+.big-input:focus{border-color:var(--gold);}
+.code-input{font-family:'Cinzel',serif;font-size:2rem;letter-spacing:8px;}
+.back-link{text-align:center;color:var(--text-dim);font-size:0.82rem;cursor:pointer;text-decoration:underline;}
+.error-msg{text-align:center;color:var(--red);font-size:0.85rem;min-height:20px;}
+
+/* ===== LOBBY ===== */
+.lobby-wrap{max-width:500px;margin:0 auto;padding:16px;flex:1;display:flex;flex-direction:column;gap:12px;}
+.lobby-code-card{background:var(--dark2);border:1px solid var(--gold-dim);border-radius:16px;padding:16px;text-align:center;}
+.lobby-code{font-family:'Cinzel',serif;font-size:3.5rem;color:var(--gold);letter-spacing:10px;line-height:1;}
+.lobby-code-label{font-size:0.72rem;color:var(--text-dim);letter-spacing:3px;margin-top:4px;}
+.qr-wrap{display:flex;justify-content:center;margin:10px 0;}
+#qrcode canvas,#qrcode img{border-radius:6px;}
+.lobby-players{background:var(--dark2);border:1px solid var(--dark3);border-radius:12px;padding:12px;max-height:200px;overflow-y:auto;}
+.lobby-player-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;margin-bottom:5px;background:var(--dark3);}
+.lobby-player-item.host-item{background:#1A1500;border:1px solid var(--gold-dim);}
+.lobby-player-name{font-size:0.9rem;font-weight:600;}
+.host-badge{background:var(--gold-dim);color:#0A0A0A;padding:2px 8px;border-radius:6px;font-size:0.68rem;font-weight:700;}
+.kick-btn2{background:var(--red);border:none;color:#FFF;width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:0.7rem;}
+.game-select-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.game-opt{background:var(--dark3);border:2px solid transparent;border-radius:10px;padding:12px 8px;text-align:center;cursor:pointer;transition:all 0.2s;}
+.game-opt.active{border-color:var(--gold);background:#1A1500;}
+.game-opt-icon{font-size:1.8rem;display:block;margin-bottom:4px;}
+.game-opt-name{font-size:0.72rem;color:var(--text-dim);}
+.lobby-btns{display:flex;gap:10px;}
+.lobby-start{flex:1;background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#0A0A0A;border:none;padding:14px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:all 0.2s;}
+.lobby-start:hover{transform:scale(1.02);}
+.lobby-leave{background:var(--dark2);color:var(--red);border:1px solid var(--red);padding:14px 16px;border-radius:12px;font-family:'Heebo',sans-serif;font-size:0.88rem;cursor:pointer;}
+.player-waiting{text-align:center;padding:20px;color:var(--text-dim);font-size:0.9rem;}
+.selected-game-badge{text-align:center;background:var(--dark3);border-radius:10px;padding:8px;font-size:0.85rem;color:var(--gold);}
+
+/* ===== TIMER ===== */
+.timer-section{background:var(--dark2);border-radius:10px;padding:10px 14px;}
+.timer-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.timer-label{font-size:0.75rem;color:var(--text-dim);}
+.timer-num{font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);}
+.timer-bar{height:8px;background:var(--dark3);border-radius:4px;overflow:hidden;}
+.timer-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:4px;transition:width 0.2s linear;}
+.timer-fill.danger{background:linear-gradient(90deg,#C02020,var(--red));}
+
+/* ===== TRIVIA ===== */
+.question-card{background:var(--dark2);border:1px solid var(--dark3);border-radius:14px;padding:20px;text-align:center;}
+.question-num{font-size:0.72rem;color:var(--gold-dim);margin-bottom:8px;letter-spacing:1px;}
+.question-text{font-size:1rem;font-weight:600;line-height:1.6;color:var(--text);}
+.answers-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ans-btn{background:var(--dark2);border:2px solid var(--dark3);border-radius:12px;padding:14px 10px;cursor:pointer;text-align:center;font-size:0.88rem;font-family:'Heebo',sans-serif;color:var(--text);transition:all 0.2s;line-height:1.4;min-height:56px;display:flex;align-items:center;justify-content:center;}
+.ans-btn:hover:not(:disabled){border-color:var(--gold-dim);}
+.ans-btn.correct{background:#1A3A1A;border-color:var(--green);color:var(--green);}
+.ans-btn.wrong{background:#3A1A1A;border-color:var(--red);color:var(--red);}
+.ans-btn:disabled{cursor:default;}
+.answered-bar{background:var(--dark2);border-radius:8px;padding:8px 12px;text-align:center;font-size:0.8rem;color:var(--text-dim);}
+
+/* ===== FORBIDDEN ===== */
+.describer-tag{display:inline-block;background:var(--purple);color:#FFF;padding:5px 14px;border-radius:10px;font-size:0.82rem;font-weight:700;margin-bottom:10px;}
+.forbidden-card{background:var(--dark2);border:2px solid var(--gold-dim);border-radius:16px;padding:20px;text-align:center;}
+.forbidden-word-big{font-family:'Cinzel',serif;font-size:2.6rem;color:var(--gold);margin-bottom:14px;}
+.forbidden-list{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.forbidden-item{background:var(--dark3);border-radius:8px;padding:8px 12px;font-size:0.88rem;color:var(--text-dim);display:flex;align-items:center;gap:8px;}
+.forbidden-item::before{content:'🚫';flex-shrink:0;}
+.describer-info{text-align:center;color:var(--text-dim);font-size:0.88rem;padding:12px;background:var(--dark2);border-radius:10px;}
+.guess-row{display:flex;gap:8px;}
+.guess-input{flex:1;background:var(--dark3);border:2px solid var(--gold-dim);color:var(--text);padding:11px 14px;border-radius:10px;font-family:'Heebo',sans-serif;font-size:1rem;outline:none;}
+.guess-btn{background:linear-gradient(135deg,var(--gold-dim),var(--gold));color:#0A0A0A;border:none;padding:11px 20px;border-radius:10px;font-family:'Heebo',sans-serif;font-size:0.9rem;font-weight:700;cursor:pointer;}
+
+/* ===== DRAW ===== */
+.draw-canvas-wrap{background:var(--dark2);border:2px solid var(--gold-dim);border-radius:12px;overflow:hidden;}
+#drawCanvas{display:block;touch-action:none;}
+.draw-toolbar{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--dark3);flex-wrap:wrap;}
+.clr-btn{width:26px;height:26px;border-radius:50%;border:3px solid transparent;cursor:pointer;flex-shrink:0;transition:all 0.15s;}
+.clr-btn.active{border-color:var(--gold);transform:scale(1.2);}
+.sz-btn{background:var(--dark2);border:1px solid #444;color:var(--text);padding:3px 8px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:'Heebo',sans-serif;}
+.sz-btn.active{border-color:var(--gold);color:var(--gold);}
+.clr-draw-btn{background:var(--red);border:none;color:#FFF;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:'Heebo',sans-serif;font-weight:700;}
+.word-hint{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:10px;}
+.word-dash{width:26px;height:26px;border-bottom:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);}
+.draw-info{text-align:center;color:var(--text-dim);font-size:0.85rem;padding:8px;}
+
+/* ===== RESULTS ===== */
+.results-wrap{max-width:420px;margin:0 auto;padding:20px;flex:1;display:flex;flex-direction:column;gap:14px;align-items:center;}
+.results-title{font-family:'Cinzel',serif;font-size:1.8rem;color:var(--gold);}
+.podium-wrap{display:flex;align-items:flex-end;gap:8px;justify-content:center;width:100%;}
+.podium-col{text-align:center;flex:1;}
+.podium-bar{border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+.podium-bar.gold{height:90px;background:linear-gradient(180deg,var(--gold),var(--gold-dim));}
+.podium-bar.silver{height:65px;background:linear-gradient(180deg,#AAA,#666);}
+.podium-bar.bronze{height:48px;background:linear-gradient(180deg,#C87C3E,#7A4A1E);}
+.podium-name{font-size:0.75rem;color:var(--text-dim);margin-top:4px;word-break:break-word;}
+.score-table{width:100%;background:var(--dark2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;}
+.score-row-final{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--dark3);border-radius:8px;}
+.score-row-final.me-row{background:#1A1500;border:1px solid var(--gold-dim);}
+.rank-num{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold-dim);width:24px;flex-shrink:0;}
+.score-final-name{flex:1;font-size:0.9rem;}
+.score-final-pts{font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);}
+
+/* ===== TOAST ===== */
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--dark2);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 20px;font-size:0.88rem;z-index:999;white-space:nowrap;animation:toastIn 0.3s ease;}
+.toast.green{border-color:var(--green);color:var(--green);}
+.toast.red{border-color:var(--red);color:var(--red);}
+.toast.gold{border-color:var(--gold);color:var(--gold);}
+@keyframes toastIn{from{opacity:0;top:50px;}to{opacity:1;top:70px;}}
+
+/* ===== SOUND INDICATOR ===== */
+.sound-indicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-size:4rem;z-index:998;pointer-events:none;animation:pop 0.6s ease forwards;}
+@keyframes pop{0%{opacity:1;transform:translate(-50%,-50%) scale(0.5);}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5);}}
+
+@media(max-width:480px){.answers-grid{grid-template-columns:1fr;}.game-opt-icon{font-size:1.4rem;}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div class="screen active" id="homeScreen">
+  <div class="home-wrap">
+    <div class="logo-wrap">
+      <svg width="64" height="64" viewBox="0 0 38 38"><polygon points="19,2 35,10.5 35,27.5 19,36 3,27.5 3,10.5" fill="#111" stroke="#C9A84C" stroke-width="1.5"/><text x="19" y="25" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#C9A84C">P</text></svg>
+      <div class="logo-title">PartyNest</div>
+      <div class="logo-tagline" data-i="tagline">משחקים מרובי שחקנים</div>
+    </div>
+    <div class="lang-row">
+      <button class="lang-pill active" onclick="setLang('he')">🇮🇱 עב</button>
+      <button class="lang-pill" onclick="setLang('en')">🇬🇧 EN</button>
+      <button class="lang-pill" onclick="setLang('ru')">🇷🇺 РУ</button>
+      <button class="lang-pill" onclick="setLang('es')">🇪🇸 ES</button>
+      <button class="lang-pill" onclick="setLang('ar')">🇸🇦 عر</button>
+    </div>
+    <button class="home-btn btn-gold" onclick="goTo('createName')" data-i="createRoom">🎮 צור חדר</button>
+    <button class="home-btn btn-outline" onclick="goTo('joinName')" data-i="joinRoom">🚪 הצטרף לחדר</button>
+    <div class="home-hint" data-i="howItWorks">כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים<br>3 משחקים: טריוויה, מילה אסורה, ציור</div>
+  </div>
+</div>
+
+<!-- CREATE NAME -->
+<div class="screen" id="createNameScreen">
+  <div class="app-header">
+    <div class="header-logo">PartyNest</div>
+    <button class="leave-header-btn" onclick="goTo('home')" data-i="back">← חזור</button>
+  </div>
+  <div class="entry-wrap">
+    <div class="entry-title" data-i="whatsYourName">מה השם שלך?</div>
+    <div class="entry-sub" data-i="nameWillShow">השם יופיע ללוח הניקוד של כולם</div>
+    <input class="big-input" id="createNameInput" maxlength="16" placeholder="הכנס שם...">
+    <div class="error-msg" id="createErr"></div>
+    <button class="home-btn btn-gold" onclick="createRoom()" data-i="createAndGo">צור חדר ➜</button>
+    <div class="back-link" onclick="goTo('home')" data-i="back">חזור</div>
+  </div>
+</div>
+
+<!-- JOIN NAME -->
+<div class="screen" id="joinNameScreen">
+  <div class="app-header">
+    <div class="header-logo">PartyNest</div>
+    <button class="leave-header-btn" onclick="goTo('home')" data-i="back">← חזור</button>
+  </div>
+  <div class="entry-wrap">
+    <div class="entry-title" data-i="joinTitle">הצטרף למשחק</div>
+    <input class="big-input" id="joinNameInput" maxlength="16" placeholder="השם שלך...">
+    <input class="big-input code-input" id="joinCodeInput" maxlength="4" placeholder="קוד" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div class="entry-sub" data-i="enterCode">הכנס קוד 4 ספרות מהמארח</div>
+    <div class="error-msg" id="joinErr"></div>
+    <button class="home-btn btn-gold" onclick="joinRoom()" data-i="joinBtn">הצטרף ➜</button>
+    <div class="back-link" onclick="goTo('home')" data-i="back">חזור</div>
+  </div>
+</div>
+
+<!-- LOBBY HOST -->
+<div class="screen" id="lobbyHostScreen">
+  <div class="app-header">
+    <div class="header-logo">🎮 PartyNest</div>
+    <div class="header-info">
+      <div class="room-pill" id="lobbyCodeDisp">----</div>
+      <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+  <div class="lobby-wrap">
+    <div class="lobby-code-card">
+      <div class="lobby-code-label" data-i="roomCode">קוד החדר</div>
+      <div class="lobby-code" id="lobbyCode">----</div>
+      <div class="qr-wrap"><div id="qrcode"></div></div>
+      <div style="font-size:0.72rem;color:var(--text-dim);" data-i="shareCode">שתף קוד זה עם השחקנים</div>
+    </div>
+    <div class="lobby-players">
+      <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
+      <div id="lobbyPlayersList"></div>
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="chooseGame">בחר משחק</div>
+      <div class="game-select-grid">
+        <div class="game-opt active" onclick="selectGame('trivia')" id="go-trivia"><span class="game-opt-icon">🧠</span><span class="game-opt-name" data-i="trivia">טריוויה</span></div>
+        <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden"><span class="game-opt-icon">🚫</span><span class="game-opt-name" data-i="forbidden">מילה אסורה</span></div>
+        <div class="game-opt" onclick="selectGame('draw')" id="go-draw"><span class="game-opt-icon">🎨</span><span class="game-opt-name" data-i="draw">ציור</span></div>
+      </div>
+    </div>
+    <div class="lobby-btns">
+      <button class="lobby-start" onclick="startGame()" data-i="startGame">התחל משחק ▶</button>
+      <button class="lobby-leave" onclick="leaveRoom()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOBBY PLAYER -->
+<div class="screen" id="lobbyPlayerScreen">
+  <div class="app-header">
+    <div class="header-logo">🎮 PartyNest</div>
+    <div class="header-info">
+      <div class="room-pill" id="lobbyCodeDisp2">----</div>
+      <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+  <div class="lobby-wrap">
+    <div class="player-waiting">
+      <div style="font-size:2rem;margin-bottom:8px;">⏳</div>
+      <div style="font-size:1rem;font-weight:700;color:var(--gold);" data-i="waitingForHost">ממתין למארח...</div>
+      <div style="font-size:0.82rem;color:var(--text-dim);margin-top:4px;" data-i="hostWillStart">המארח יתחיל את המשחק בקרוב</div>
+    </div>
+    <div class="lobby-players">
+      <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="players">שחקנים</div>
+      <div id="lobbyPlayersListP"></div>
+    </div>
+    <div class="selected-game-badge" id="playerGameBadge"></div>
+    <button class="lobby-leave" style="width:100%;" onclick="leaveRoom()" data-i="leave">עזוב חדר</button>
+  </div>
+</div>
+
+<!-- TRIVIA -->
+<div class="screen" id="triviaScreen">
+  <div class="app-header">
+    <div class="header-logo">🧠 <span data-i="trivia">טריוויה</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="triviaCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="triviaQLabel">שאלה 1/10</span>
+          <span class="timer-num" id="triviaTimerNum">20</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill" id="triviaTimerFill" style="width:100%"></div></div>
+      </div>
+      <div class="question-card">
+        <div class="question-num" id="triviaQNum">שאלה 1</div>
+        <div class="question-text" id="triviaQText">...</div>
+      </div>
+      <div class="answers-grid" id="triviaAnswersGrid"></div>
+      <div class="answered-bar" id="triviaAnsweredBar"></div>
+      <div class="chat-box">
+        <div class="chat-messages" id="triviaChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="triviaChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('trivia')">
+          <button class="chat-send" onclick="sendChat('trivia')">שלח</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title" data-i="liveScores">ניקוד חי</div>
+      <div id="triviaSidebarScores"></div>
+      <div id="triviaHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FORBIDDEN -->
+<div class="screen" id="forbiddenScreen">
+  <div class="app-header">
+    <div class="header-logo">🚫 <span data-i="forbidden">מילה אסורה</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="forbiddenCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="forbiddenRoundLabel">סיבוב 1</span>
+          <span class="timer-num" id="forbiddenTimerNum">60</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill" id="forbiddenTimerFill" style="width:100%"></div></div>
+      </div>
+      <div id="forbiddenDescriberView" style="display:none;">
+        <div style="text-align:center;margin-bottom:10px;"><span class="describer-tag" data-i="yourTurnDescribe">תורך לתאר!</span></div>
+        <div class="forbidden-card">
+          <div class="forbidden-word-big" id="forbiddenWordBig"></div>
+          <div style="font-size:0.72rem;color:var(--text-dim);margin-bottom:8px;" data-i="dontSay">אסור לומר:</div>
+          <ul class="forbidden-list" id="forbiddenHintsList"></ul>
+        </div>
+      </div>
+      <div id="forbiddenGuesserView" style="display:none;">
+        <div class="describer-info" id="forbiddenWhoDescribes"></div>
+        <div class="word-hint" id="forbiddenWordDashes"></div>
+        <div class="guess-row">
+          <input class="guess-input" id="forbiddenGuessInp" placeholder="נחש..." onkeydown="if(event.key==='Enter')submitForbiddenGuess()">
+          <button class="guess-btn" onclick="submitForbiddenGuess()" data-i="sendGuess">שלח</button>
+        </div>
+      </div>
+      <div class="chat-box">
+        <div class="chat-messages" id="forbiddenChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="forbiddenChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('forbidden')">
+          <button class="chat-send" onclick="sendChat('forbidden')">שלח</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title" data-i="liveScores">ניקוד חי</div>
+      <div id="forbiddenSidebarScores"></div>
+      <div id="forbiddenHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DRAW -->
+<div class="screen" id="drawScreen">
+  <div class="app-header">
+    <div class="header-logo">🎨 <span data-i="draw">ציור</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="drawCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="drawRoundLabel">סיבוב 1</span>
+          <span class="timer-num" id="drawTimerNum">80</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill" id="drawTimerFill" style="width:100%"></div></div>
+      </div>
+      <div class="draw-canvas-wrap">
+        <div class="word-hint" id="drawWordHint"></div>
+        <canvas id="drawCanvas" width="400" height="240"></canvas>
+        <div id="drawToolbar" class="draw-toolbar" style="display:none;">
+          <div class="clr-btn active" style="background:#E8E0D0;" onclick="setClr('#E8E0D0')" data-c="#E8E0D0"></div>
+          <div class="clr-btn" style="background:#E05050;" onclick="setClr('#E05050')" data-c="#E05050"></div>
+          <div class="clr-btn" style="background:#4A8FD4;" onclick="setClr('#4A8FD4')" data-c="#4A8FD4"></div>
+          <div class="clr-btn" style="background:#4CAF7A;" onclick="setClr('#4CAF7A')" data-c="#4CAF7A"></div>
+          <div class="clr-btn" style="background:#C9A84C;" onclick="setClr('#C9A84C')" data-c="#C9A84C"></div>
+          <div class="clr-btn" style="background:#E0A040;" onclick="setClr('#E0A040')" data-c="#E0A040"></div>
+          <div class="clr-btn" style="background:#9B59B6;" onclick="setClr('#9B59B6')" data-c="#9B59B6"></div>
+          <div class="clr-btn" style="background:#1A1A1A;" onclick="setClr('#1A1A1A')" data-c="#1A1A1A"></div>
+          <button class="sz-btn active" onclick="setSz(4)" data-s="4">S</button>
+          <button class="sz-btn" onclick="setSz(8)" data-s="8">M</button>
+          <button class="sz-btn" onclick="setSz(16)" data-s="16">L</button>
+          <button class="clr-draw-btn" onclick="clearDraw()" data-i="clear">נקה</button>
+        </div>
+      </div>
+      <div class="draw-info" id="drawInfo"></div>
+      <div id="drawGuessArea" style="display:none;">
+        <div class="guess-row">
+          <input class="guess-input" id="drawGuessInp" placeholder="נחש את הציור..." onkeydown="if(event.key==='Enter')submitDrawGuess()" oninput="checkDrawGuess()">
+          <button class="guess-btn" onclick="submitDrawGuess()" data-i="sendGuess">שלח</button>
+        </div>
+      </div>
+      <div class="chat-box">
+        <div class="chat-messages" id="drawChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="drawChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('draw')">
+          <button class="chat-send" onclick="sendChat('draw')">שלח</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title" data-i="liveScores">ניקוד חי</div>
+      <div id="drawSidebarScores"></div>
+      <div id="drawHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div class="screen" id="resultsScreen">
+  <div class="app-header">
+    <div class="header-logo">🏆 <span data-i="results">תוצאות</span></div>
+    <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
+  </div>
+  <div class="results-wrap">
+    <div class="results-title" data-i="gameOver">המשחק הסתיים!</div>
+    <div class="podium-wrap" id="podiumWrap"></div>
+    <div class="score-table" id="scoreTable"></div>
+    <div style="display:flex;gap:10px;width:100%;">
+      <button class="home-btn btn-gold" style="flex:1;" onclick="backToLobby()" data-i="playAgain">שחק שוב 🔄</button>
+      <button class="home-btn btn-outline" style="flex:1;" onclick="leaveRoom()" data-i="leave">יציאה</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, off, remove, push, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+
+const FB = {
+  apiKey:"AIzaSyCZSu6eqXM_e7dNcNqgQOrZCsV-xvT_TVQ",
+  authDomain:"partynest-91240.firebaseapp.com",
+  databaseURL:"https://partynest-91240-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"partynest-91240",
+  storageBucket:"partynest-91240.firebasestorage.app",
+  messagingSenderId:"503360396840",
+  appId:"1:503360396840:web:f35f102b7c67e91fdc9f1d"
+};
+const app = initializeApp(FB);
+const db = getDatabase(app);
+
+// ===== I18N =====
+const T = {
+  he:{tagline:'משחקים מרובי שחקנים',createRoom:'🎮 צור חדר',joinRoom:'🚪 הצטרף לחדר',
+    howItWorks:'כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים\n3 משחקים: טריוויה, מילה אסורה, ציור',
+    back:'← חזור',whatsYourName:'מה השם שלך?',nameWillShow:'השם יופיע ללוח הניקוד של כולם',
+    createAndGo:'צור חדר ➜',joinTitle:'הצטרף למשחק',enterCode:'הכנס קוד 4 ספרות מהמארח',
+    joinBtn:'הצטרף ➜',roomCode:'קוד החדר',shareCode:'שתף קוד זה עם השחקנים',
+    players:'שחקנים',chooseGame:'בחר משחק',trivia:'טריוויה',forbidden:'מילה אסורה',draw:'ציור',
+    startGame:'התחל משחק ▶',leave:'יציאה',waitingForHost:'ממתין למארח...',
+    hostWillStart:'המארח יתחיל את המשחק בקרוב',liveScores:'ניקוד חי',
+    yourTurnDescribe:'תורך לתאר!',dontSay:'אסור לומר:',sendGuess:'שלח',
+    wordToGuess:'נחשו את המילה:',clear:'נקה',results:'תוצאות',gameOver:'המשחק הסתיים!',
+    playAgain:'שחק שוב 🔄',host:'מארח',kicked:'הוצאת מהמשחק',
+    roomNotFound:'חדר לא נמצא',nameRequired:'חובה להכניס שם',codeRequired:'חובה להכניס קוד',
+    question:'שאלה',of:'מתוך',answered:'ענו',waitOthers:'ממתין לשאר...',
+    correctSound:'✅ נכון!',wrongSound:'❌ שגוי',timeUp:'⏰ הזמן נגמר!',
+    round:'סיבוב',describing:'מתאר',guessing:'מנחש',
+    nextRound:'סיבוב הבא',endGame:'סיים משחק',stopGame:'עצור משחק',
+    guessedCorrect:'✅ ניחשת נכון!',alreadyGuessed:'כבר ניחשת',
+    drawerLabel:'מצייר:',chat:'צ\'אט',send:'שלח',
+    hostKick:'הוצא',pleaseWait:'ממתין...',connecting:'מתחבר...'},
+  en:{tagline:'Multiplayer Games',createRoom:'🎮 Create Room',joinRoom:'🚪 Join Room',
+    howItWorks:'Join with a 4-digit code • Up to 100 players\n3 games: Trivia, Forbidden Word, Drawing',
+    back:'← Back',whatsYourName:'What\'s your name?',nameWillShow:'Name will appear on scoreboard',
+    createAndGo:'Create Room ➜',joinTitle:'Join a Game',enterCode:'Enter the 4-digit code from the host',
+    joinBtn:'Join ➜',roomCode:'Room Code',shareCode:'Share this code with players',
+    players:'Players',chooseGame:'Choose Game',trivia:'Trivia',forbidden:'Forbidden Word',draw:'Drawing',
+    startGame:'Start Game ▶',leave:'Leave',waitingForHost:'Waiting for host...',
+    hostWillStart:'Host will start the game soon',liveScores:'Live Scores',
+    yourTurnDescribe:'Your turn to describe!',dontSay:'Do not say:',sendGuess:'Send',
+    wordToGuess:'Guess the word:',clear:'Clear',results:'Results',gameOver:'Game Over!',
+    playAgain:'Play Again 🔄',host:'Host',kicked:'You were kicked',
+    roomNotFound:'Room not found',nameRequired:'Please enter a name',codeRequired:'Please enter a code',
+    question:'Question',of:'of',answered:'answered',waitOthers:'Waiting for others...',
+    correctSound:'✅ Correct!',wrongSound:'❌ Wrong',timeUp:'⏰ Time\'s up!',
+    round:'Round',describing:'describing',guessing:'guessing',
+    nextRound:'Next Round',endGame:'End Game',stopGame:'Stop Game',
+    guessedCorrect:'✅ You guessed it!',alreadyGuessed:'Already guessed',
+    drawerLabel:'Drawing:',chat:'Chat',send:'Send',
+    hostKick:'Kick',pleaseWait:'Please wait...',connecting:'Connecting...'},
+  ru:{tagline:'Многопользовательские игры',createRoom:'🎮 Создать комнату',joinRoom:'🚪 Войти',
+    howItWorks:'Входите по 4-значному коду • До 100 игроков\n3 игры: Викторина, Запретное слово, Рисование',
+    back:'← Назад',whatsYourName:'Как тебя зовут?',nameWillShow:'Имя появится на табло',
+    createAndGo:'Создать ➜',joinTitle:'Присоединиться',enterCode:'Введи 4-значный код хоста',
+    joinBtn:'Войти ➜',roomCode:'Код комнаты',shareCode:'Поделись кодом с игроками',
+    players:'Игроки',chooseGame:'Выбери игру',trivia:'Викторина',forbidden:'Запретное слово',draw:'Рисование',
+    startGame:'Начать ▶',leave:'Выйти',waitingForHost:'Ждём хоста...',
+    hostWillStart:'Хост скоро начнёт',liveScores:'Очки',
+    yourTurnDescribe:'Твоя очередь описывать!',dontSay:'Нельзя говорить:',sendGuess:'Отправить',
+    wordToGuess:'Угадай слово:',clear:'Очистить',results:'Результаты',gameOver:'Игра окончена!',
+    playAgain:'Играть снова 🔄',host:'Хост',kicked:'Вас выгнали',
+    roomNotFound:'Комната не найдена',nameRequired:'Введите имя',codeRequired:'Введите код',
+    question:'Вопрос',of:'из',answered:'ответили',waitOthers:'Ждём других...',
+    correctSound:'✅ Правильно!',wrongSound:'❌ Неверно',timeUp:'⏰ Время вышло!',
+    round:'Раунд',describing:'описывает',guessing:'угадывает',
+    nextRound:'Следующий раунд',endGame:'Завершить',stopGame:'Стоп',
+    guessedCorrect:'✅ Угадал!',alreadyGuessed:'Уже угадал',
+    drawerLabel:'Рисует:',chat:'Чат',send:'Отправить',
+    hostKick:'Выгнать',pleaseWait:'Подожди...',connecting:'Подключение...'},
+  es:{tagline:'Juegos multijugador',createRoom:'🎮 Crear sala',joinRoom:'🚪 Unirse',
+    howItWorks:'Únete con código de 4 dígitos • Hasta 100 jugadores\n3 juegos: Trivia, Palabra Prohibida, Dibujo',
+    back:'← Atrás',whatsYourName:'¿Cómo te llamas?',nameWillShow:'El nombre aparecerá en el marcador',
+    createAndGo:'Crear sala ➜',joinTitle:'Unirse al juego',enterCode:'Ingresa el código de 4 dígitos',
+    joinBtn:'Unirse ➜',roomCode:'Código de sala',shareCode:'Comparte este código con los jugadores',
+    players:'Jugadores',chooseGame:'Elige juego',trivia:'Trivia',forbidden:'Palabra prohibida',draw:'Dibujo',
+    startGame:'Iniciar ▶',leave:'Salir',waitingForHost:'Esperando al anfitrión...',
+    hostWillStart:'El anfitrión iniciará pronto',liveScores:'Puntuación',
+    yourTurnDescribe:'¡Tu turno de describir!',dontSay:'No digas:',sendGuess:'Enviar',
+    wordToGuess:'Adivina la palabra:',clear:'Borrar',results:'Resultados',gameOver:'¡Juego terminado!',
+    playAgain:'Jugar de nuevo 🔄',host:'Anfitrión',kicked:'Te expulsaron',
+    roomNotFound:'Sala no encontrada',nameRequired:'Ingresa un nombre',codeRequired:'Ingresa un código',
+    question:'Pregunta',of:'de',answered:'respondieron',waitOthers:'Esperando...',
+    correctSound:'✅ ¡Correcto!',wrongSound:'❌ Incorrecto',timeUp:'⏰ ¡Tiempo agotado!',
+    round:'Ronda',describing:'describe',guessing:'adivina',
+    nextRound:'Siguiente ronda',endGame:'Terminar',stopGame:'Parar',
+    guessedCorrect:'✅ ¡Adivinaste!',alreadyGuessed:'Ya adivinaste',
+    drawerLabel:'Dibuja:',chat:'Chat',send:'Enviar',
+    hostKick:'Expulsar',pleaseWait:'Espera...',connecting:'Conectando...'},
+  ar:{tagline:'ألعاب متعددة اللاعبين',createRoom:'🎮 إنشاء غرفة',joinRoom:'🚪 انضم لغرفة',
+    howItWorks:'انضم بكود من 4 أرقام • حتى 100 لاعب\n3 ألعاب: ترويا، كلمة محظورة، رسم',
+    back:'← رجوع',whatsYourName:'ما اسمك؟',nameWillShow:'سيظهر الاسم في لوحة النقاط',
+    createAndGo:'إنشاء غرفة ➜',joinTitle:'انضم للعبة',enterCode:'أدخل الكود المكون من 4 أرقام',
+    joinBtn:'انضم ➜',roomCode:'كود الغرفة',shareCode:'شارك هذا الكود مع اللاعبين',
+    players:'اللاعبون',chooseGame:'اختر لعبة',trivia:'ترويا',forbidden:'كلمة محظورة',draw:'رسم',
+    startGame:'ابدأ ▶',leave:'اخرج',waitingForHost:'في انتظار المضيف...',
+    hostWillStart:'سيبدأ المضيف قريباً',liveScores:'النقاط المباشرة',
+    yourTurnDescribe:'دورك للوصف!',dontSay:'لا تقل:',sendGuess:'أرسل',
+    wordToGuess:'خمّن الكلمة:',clear:'امسح',results:'النتائج',gameOver:'انتهت اللعبة!',
+    playAgain:'العب مجدداً 🔄',host:'مضيف',kicked:'تم طردك',
+    roomNotFound:'الغرفة غير موجودة',nameRequired:'أدخل اسماً',codeRequired:'أدخل الكود',
+    question:'سؤال',of:'من',answered:'أجابوا',waitOthers:'في انتظار الآخرين...',
+    correctSound:'✅ صحيح!',wrongSound:'❌ خطأ',timeUp:'⏰ انتهى الوقت!',
+    round:'جولة',describing:'يصف',guessing:'يخمن',
+    nextRound:'الجولة التالية',endGame:'إنهاء',stopGame:'إيقاف',
+    guessedCorrect:'✅ خمّنت بشكل صحيح!',alreadyGuessed:'خمّنت بالفعل',
+    drawerLabel:'يرسم:',chat:'دردشة',send:'إرسال',
+    hostKick:'طرد',pleaseWait:'انتظر...',connecting:'جارٍ الاتصال...'},
+};
+let lang='he';
+function t(k){return(T[lang]||T.en)[k]||k;}
+
+window.setLang=function(l){
+  lang=l;
+  document.querySelectorAll('.lang-pill').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  const rtl=['he','ar'].includes(l);
+  document.body.dir=rtl?'rtl':'ltr';
+  document.body.classList.toggle('ltr',!rtl);
+  applyT();
+};
+function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
+
+// ===== STATE =====
+let myId='p_'+Math.random().toString(36).substr(2,9);
+let myName='',roomCode='',isHost=false,selectedGame='trivia';
+let scores={};
+let roomListener=null;
+let chatListener=null;
+let gameTimerInterval=null;
+let drawSyncInterval=null;
+let drawCtx=null;
+let drawColor='#E8E0D0',drawSize=4,drawIsDrawing=false;
+
+// ===== NAVIGATION =====
+window.goTo=function(s){
+  document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
+  document.getElementById(s+'Screen').classList.add('active');
+};
+function showScreen(s){goTo(s);}
+
+// ===== TOAST =====
+function toast(msg,type='',dur=3000){
+  const el=document.createElement('div');
+  el.className='toast '+type;el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),dur);
+}
+
+// ===== SOUND =====
+function playSound(type){
+  const emojis={correct:'✅',wrong:'❌',timeup:'⏰',join:'👋',start:'🚀'};
+  const emoji=emojis[type]||'';
+  if(!emoji)return;
+  const el=document.createElement('div');
+  el.className='sound-indicator';el.textContent=emoji;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),700);
+  // Actual sound via AudioContext
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ac.createOscillator();
+    const gain=ac.createGain();
+    osc.connect(gain);gain.connect(ac.destination);
+    const freqs={correct:[523,659,784],wrong:[300,220],timeup:[440,220],join:[523,659],start:[523,659,784,1047]};
+    const f=freqs[type]||[440];
+    osc.frequency.value=f[0];
+    gain.gain.setValueAtTime(0.3,ac.currentTime);
+    osc.start();
+    f.forEach((freq,i)=>osc.frequency.setValueAtTime(freq,ac.currentTime+i*0.1));
+    gain.gain.exponentialRampToValueAtTime(0.01,ac.currentTime+f.length*0.1+0.2);
+    osc.stop(ac.currentTime+f.length*0.1+0.3);
+  }catch(e){}
+}
+
+// ===== CREATE ROOM =====
+window.createRoom=async function(){
+  const name=document.getElementById('createNameInput').value.trim();
+  if(!name){document.getElementById('createErr').textContent=t('nameRequired');return;}
+  myName=name;isHost=true;
+  roomCode=Math.floor(1000+Math.random()*9000).toString();
+  scores={};
+  scores[myId]={name:myName,score:0,host:true};
+  await set(ref(db,'rooms/'+roomCode),{
+    host:myId,game:'trivia',status:'lobby',
+    players:{[myId]:{name:myName,score:0,host:true}},
+    created:Date.now()
+  });
+  setupLobbyHost();
+  listenRoom();
+};
+
+window.selectGame=function(g){
+  selectedGame=g;
+  document.querySelectorAll('.game-opt').forEach(el=>el.classList.remove('active'));
+  document.getElementById('go-'+g).classList.add('active');
+  update(ref(db,'rooms/'+roomCode),{game:g});
+};
+
+function setupLobbyHost(){
+  document.getElementById('lobbyCode').textContent=roomCode;
+  document.getElementById('lobbyCodeDisp').textContent=roomCode;
+  // QR
+  document.getElementById('qrcode').innerHTML='';
+  const url=window.location.href.split('?')[0]+'?join='+roomCode;
+  try{new QRCode(document.getElementById('qrcode'),{text:url,width:90,height:90,colorDark:'#0A0A0A',colorLight:'#F0C060'});}
+  catch(e){document.getElementById('qrcode').textContent=roomCode;}
+  showScreen('lobbyHost');
+}
+
+// ===== JOIN ROOM =====
+window.joinRoom=async function(){
+  const name=document.getElementById('joinNameInput').value.trim();
+  const code=document.getElementById('joinCodeInput').value.trim();
+  if(!name){document.getElementById('joinErr').textContent=t('nameRequired');return;}
+  if(!code||code.length!==4){document.getElementById('joinErr').textContent=t('codeRequired');return;}
+  document.getElementById('joinErr').textContent=t('connecting');
+  myName=name;isHost=false;roomCode=code;
+  const snap=await get(ref(db,'rooms/'+code));
+  if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
+  scores[myId]={name:myName,score:0};
+  await set(ref(db,'rooms/'+code+'/players/'+myId),{name:myName,score:0});
+  document.getElementById('lobbyCodeDisp2').textContent=code;
+  showScreen('lobbyPlayer');
+  listenRoom();
+  playSound('join');
+};
+
+// ===== LEAVE =====
+window.leaveRoom=async function(){
+  clearAllTimers();
+  if(roomListener){off(ref(db,'rooms/'+roomCode));roomListener=null;}
+  if(isHost)await remove(ref(db,'rooms/'+roomCode));
+  else await remove(ref(db,'rooms/'+roomCode+'/players/'+myId));
+  scores={};roomCode='';isHost=false;
+  goTo('home');
+};
+
+window.confirmLeave=function(){
+  if(confirm(lang==='he'?'לצאת מהמשחק?':lang==='ru'?'Выйти из игры?':'Leave game?'))leaveRoom();
+};
+
+window.kickPlayer=function(pid){
+  remove(ref(db,'rooms/'+roomCode+'/players/'+pid));
+};
+
+// ===== LISTEN =====
+function listenRoom(){
+  if(roomListener){off(ref(db,'rooms/'+roomCode));}
+  onValue(ref(db,'rooms/'+roomCode),snap=>{
+    if(!snap.exists()){
+      if(roomCode){toast(t('roomNotFound'),'red');goTo('home');}
+      return;
+    }
+    const room=snap.val();
+    scores=room.players||{};
+    selectedGame=room.game||'trivia';
+
+    // Check kicked
+    if(!isHost&&!scores[myId]){toast(t('kicked'),'red');goTo('home');return;}
+
+    if(room.status==='lobby'){
+      if(isHost){setupLobbyHost();renderLobbyPlayers(room);}
+      else{
+        const gn={trivia:t('trivia'),forbidden:t('forbidden'),draw:t('draw')};
+        document.getElementById('playerGameBadge').textContent='🎮 '+gn[selectedGame];
+        renderLobbyPlayersP(room);
+        showScreen('lobbyPlayer');
+      }
+    }
+    else if(room.status==='trivia')loadTrivia(room);
+    else if(room.status==='forbidden')loadForbidden(room);
+    else if(room.status==='draw')loadDraw(room);
+    else if(room.status==='results')showResults(room);
+  });
+  roomListener=true;
+}
+
+function renderLobbyPlayers(room){
+  const html=Object.entries(room.players||{}).map(([id,p])=>`
+    <div class="lobby-player-item ${id===room.host?'host-item':''}">
+      <span class="lobby-player-name">${p.name}${id===myId?' 👤':''}</span>
+      <div style="display:flex;align-items:center;gap:5px;">
+        ${id===room.host?`<span class="host-badge">${t('host')}</span>`:''}
+        ${isHost&&id!==myId?`<button class="kick-btn2" onclick="kickPlayer('${id}')">✕</button>`:''}
+      </div>
+    </div>`).join('');
+  const el=document.getElementById('lobbyPlayersList');
+  if(el)el.innerHTML=html;
+}
+function renderLobbyPlayersP(room){
+  const html=Object.entries(room.players||{}).map(([id,p])=>`
+    <div class="lobby-player-item ${id===room.host?'host-item':''}">
+      <span class="lobby-player-name">${p.name}${id===myId?' 👤':''}</span>
+      ${id===room.host?`<span class="host-badge">${t('host')}</span>`:''}
+    </div>`).join('');
+  const el=document.getElementById('lobbyPlayersListP');
+  if(el)el.innerHTML=html;
+}
+
+// ===== SIDEBAR SCORES =====
+function renderSidebarScores(containerId,scoresObj,answered={}){
+  const sorted=Object.entries(scoresObj||{}).sort((a,b)=>b[1].score-a[1].score);
+  const html=sorted.map(([id,p])=>`
+    <div class="sidebar-player ${id===myId?'me':''}">
+      <span class="sidebar-player-name">${p.name||'?'}${answered[id]?' ✅':''}</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span class="sidebar-player-pts">${p.score||0}</span>
+        ${isHost&&id!==myId?`<button class="sidebar-kick" onclick="kickPlayer('${id}')">✕</button>`:''}
+      </div>
+    </div>`).join('');
+  const el=document.getElementById(containerId);
+  if(el)el.innerHTML=html;
+}
+
+function renderHostControls(containerId,extraBtns=''){
+  if(!isHost)return;
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  el.innerHTML=`<div class="host-controls">
+    <div class="host-ctrl-title">🎛 מנהל</div>
+    ${extraBtns}
+    <button class="host-ctrl-btn danger" onclick="confirmEndGame()">${t('endGame')}</button>
+  </div>`;
+}
+
+window.confirmEndGame=function(){
+  if(confirm(lang==='he'?'לסיים את המשחק?':'End the game?'))
+    update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:getScoresFlat()});
+};
+
+function getScoresFlat(){
+  const s={};
+  Object.entries(scores).forEach(([id,p])=>s[id]=p.score||0);
+  return s;
+}
+
+// ===== CHAT =====
+function listenChat(game){
+  if(chatListener){off(ref(db,'rooms/'+roomCode+'/chat'));chatListener=null;}
+  onValue(ref(db,'rooms/'+roomCode+'/chat'),snap=>{
+    if(!snap.exists())return;
+    const msgs=Object.values(snap.val()).sort((a,b)=>a.ts-b.ts).slice(-50);
+    const container=document.getElementById(game+'ChatMsgs');
+    if(!container)return;
+    container.innerHTML=msgs.map(m=>`
+      <div class="chat-msg ${m.system?'system':''}${m.correct?' correct-msg':''}">
+        ${m.system?m.text:`<span class="chat-name">${m.name}:</span> ${m.text}`}
+      </div>`).join('');
+    container.scrollTop=container.scrollHeight;
+  });
+  chatListener=true;
+}
+
+window.sendChat=function(game){
+  const inp=document.getElementById(game+'ChatInput');
+  const text=inp.value.trim();
+  if(!text)return;
+  push(ref(db,'rooms/'+roomCode+'/chat'),{name:myName,text,ts:Date.now()});
+  inp.value='';
+};
+
+function systemMsg(text){
+  push(ref(db,'rooms/'+roomCode+'/chat'),{system:true,text,ts:Date.now()});
+}
+
+// ===== START GAME =====
+window.startGame=function(){
+  const ps=Object.keys(scores);
+  if(!ps.length){toast(lang==='he'?'צריך לפחות שחקן אחד!':'Need at least 1 player!','red');return;}
+  playSound('start');
+  if(selectedGame==='trivia')initTrivia();
+  else if(selectedGame==='forbidden')initForbidden();
+  else if(selectedGame==='draw')initDraw();
+};
+
+function clearAllTimers(){
+  clearInterval(gameTimerInterval);
+  clearInterval(drawSyncInterval);
+}
+
+// ===========================
+// ===== TRIVIA =============
+// ===========================
+const TQ={
+  he:[
+    {q:'מה בירת צרפת?',a:'פריז',w:['לונדון','ברלין','רומא']},
+    {q:'כמה צבעים בקשת בענן?',a:'7',w:['5','6','8']},
+    {q:'מי כתב את "מלחמה ושלום"?',a:'טולסטוי',w:['דוסטויבסקי','גוגול','צ\'כוב']},
+    {q:'הכוכב הגדול ביותר במערכת השמש?',a:'השמש',w:['צדק','שבתאי','נפטון']},
+    {q:'כמה ימים בשנת עיבור?',a:'366',w:['365','367','360']},
+    {q:'הים הגדול ביותר בעולם?',a:'האוקיינוס השקט',w:['האוקיינוס האטלנטי','האוקיינוס ההודי','הים התיכון']},
+    {q:'מי צייר את המונה ליזה?',a:'לאונרדו דה וינצ\'י',w:['מיכלאנג\'לו','רפאל','בוטיצ\'לי']},
+    {q:'סמל כימי של זהב?',a:'Au',w:['Ag','Fe','Cu']},
+    {q:'כמה עצמות בגוף האדם?',a:'206',w:['196','216','180']},
+    {q:'הגובה של הר האברסט?',a:'8,848 מטר',w:['8,000 מטר','9,000 מטר','7,500 מטר']},
+    {q:'מה האוקיינוס הקטן ביותר?',a:'הארקטי',w:['ההודי','האטלנטי','הדרומי']},
+    {q:'כמה שחקנים בנבחרת כדורגל?',a:'11',w:['10','12','9']},
+  ],
+  en:[
+    {q:'Capital of France?',a:'Paris',w:['London','Berlin','Rome']},
+    {q:'Colors in a rainbow?',a:'7',w:['5','6','8']},
+    {q:'Who wrote "War and Peace"?',a:'Tolstoy',w:['Dostoevsky','Gogol','Chekhov']},
+    {q:'Largest planet in solar system?',a:'Jupiter',w:['Saturn','Neptune','Uranus']},
+    {q:'Days in a leap year?',a:'366',w:['365','367','360']},
+    {q:'Largest ocean?',a:'Pacific',w:['Atlantic','Indian','Arctic']},
+    {q:'Who painted the Mona Lisa?',a:'Leonardo da Vinci',w:['Michelangelo','Raphael','Botticelli']},
+    {q:'Chemical symbol for gold?',a:'Au',w:['Ag','Fe','Cu']},
+    {q:'Bones in human body?',a:'206',w:['196','216','180']},
+    {q:'Height of Mount Everest?',a:'8,848m',w:['8,000m','9,000m','7,500m']},
+    {q:'Smallest ocean?',a:'Arctic',w:['Indian','Atlantic','Southern']},
+    {q:'Players in a football team?',a:'11',w:['10','12','9']},
+  ],
+};
+
+let triviaTimerStart=0,triviaAnswered={};
+
+function initTrivia(){
+  const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const initSc={};Object.keys(scores).forEach(id=>initSc[id]=0);
+  const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
+  update(ref(db,'rooms/'+roomCode),{
+    status:'trivia',triviaQuestions:qs,triviaIndex:0,
+    triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),
+    players,chat:null
+  });
+  systemMsg(lang==='he'?'🧠 טריוויה התחילה!':'🧠 Trivia started!');
+}
+
+function loadTrivia(room){
+  if(!room.triviaQuestions)return;
+  const idx=room.triviaIndex||0;
+  const qs=room.triviaQuestions;
+  const q=qs[idx];
+  const myAns=(room.triviaAnswers||{})[myId];
+  const tScores=room.triviaScores||{};
+
+  showScreen('trivia');
+  document.getElementById('triviaCode').textContent=roomCode;
+  document.getElementById('triviaQLabel').textContent=t('question')+' '+(idx+1)+'/'+qs.length;
+  document.getElementById('triviaQNum').textContent=t('question')+' '+(idx+1);
+  document.getElementById('triviaQText').textContent=q.q;
+
+  // Sync scores to players
+  const pScores={};Object.entries(scores).forEach(([id,p])=>pScores[id]={...p,score:tScores[id]||0});
+  renderSidebarScores('triviaSidebarScores',pScores,room.triviaAnswers||{});
+
+  // Host controls
+  renderHostControls('triviaHostControls',
+    `<button class="host-ctrl-btn primary" onclick="advanceTriviaManual()">${t('nextRound')} ▶</button>`);
+
+  // Answers
+  const grid=document.getElementById('triviaAnswersGrid');
+  const allOpts=[q.a,...q.w];
+  // Stable shuffle using question index
+  const seed=idx*7;
+  const opts=allOpts.sort((a,b)=>(a.charCodeAt(0)+seed)%11-(b.charCodeAt(0)+seed)%11);
+  grid.innerHTML=opts.map(opt=>{
+    let cls='';
+    if(myAns)cls=opt===q.a?'correct':(opt===myAns?'wrong':'');
+    return `<button class="ans-btn ${cls}" ${myAns?'disabled':''} onclick="submitTrivia(${JSON.stringify(opt)})">${opt}</button>`;
+  }).join('');
+
+  // Answered count
+  const answeredCount=Object.keys(room.triviaAnswers||{}).length;
+  const total=Object.keys(scores).length;
+  document.getElementById('triviaAnsweredBar').textContent=answeredCount+'/'+total+' '+t('answered');
+
+  // Timer
+  clearInterval(gameTimerInterval);
+  const dur=20;
+  triviaTimerStart=room.triviaStart||Date.now();
+  gameTimerInterval=setInterval(()=>{
+    const elapsed=(Date.now()-triviaTimerStart)/1000;
+    const rem=Math.max(0,dur-elapsed);
+    const pct=rem/dur*100;
+    document.getElementById('triviaTimerNum').textContent=Math.ceil(rem);
+    document.getElementById('triviaTimerFill').style.width=pct+'%';
+    document.getElementById('triviaTimerFill').classList.toggle('danger',rem<6);
+    if(rem<=0){
+      clearInterval(gameTimerInterval);
+      playSound('timeup');
+      if(isHost)setTimeout(()=>advanceTrivia(room),1500);
+    }
+  },100);
+
+  listenChat('trivia');
+}
+
+window.submitTrivia=async function(answer){
+  const snap=await get(ref(db,'rooms/'+roomCode));
+  const room=snap.val();
+  if(!room||room.status!=='trivia')return;
+  if((room.triviaAnswers||{})[myId])return;
+  const q=room.triviaQuestions[room.triviaIndex||0];
+  const ok=answer===q.a;
+  const elapsed=Math.floor((Date.now()-(room.triviaStart||Date.now()))/1000);
+  const pts=ok?Math.max(50,100+(20-elapsed)*5):0;
+  if(ok)playSound('correct');else playSound('wrong');
+  await update(ref(db,'rooms/'+roomCode+'/triviaAnswers'),{[myId]:answer});
+  if(pts>0){
+    const cur=(room.triviaScores||{})[myId]||0;
+    await update(ref(db,'rooms/'+roomCode+'/triviaScores'),{[myId]:cur+pts});
+    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:cur+pts});
+  }
+  const newAns={...(room.triviaAnswers||{}),[myId]:answer};
+  if(isHost&&Object.keys(newAns).length>=Object.keys(room.players||{}).length){
+    setTimeout(()=>advanceTrivia(room),1200);
+  }
+};
+
+window.advanceTriviaManual=function(){
+  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceTrivia(snap.val()));
+};
+
+async function advanceTrivia(room){
+  clearInterval(gameTimerInterval);
+  const next=(room.triviaIndex||0)+1;
+  if(next>=(room.triviaQuestions||[]).length){
+    const fs={};Object.entries(room.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
+    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+  } else {
+    await update(ref(db,'rooms/'+roomCode),{triviaIndex:next,triviaAnswers:{},triviaStart:Date.now()});
+  }
+}
+
+// ===========================
+// ===== FORBIDDEN ==========
+// ===========================
+const FW={
+  he:[
+    {word:'מחשב',hints:['מסך','מקלדת','עכבר','תוכנה']},
+    {word:'ים',hints:['גלים','מלח','שחייה','דגים']},
+    {word:'עוגה',hints:['מתוק','יום הולדת','שוקולד','קמח']},
+    {word:'כדורגל',hints:['שחקן','שער','כדור','מגרש']},
+    {word:'בית',hints:['גג','קיר','דלת','חלון']},
+    {word:'ספר',hints:['קריאה','עמוד','כותב','ספרייה']},
+    {word:'מוסיקה',hints:['שיר','נגינה','מנגינה','קצב']},
+    {word:'אריה',hints:['מלך','ג\'ונגל','שיניים','פרא']},
+    {word:'מטוס',hints:['טיסה','שמיים','טייס','כנפיים']},
+    {word:'רכבת',hints:['מסילה','תחנה','קרון','נסיעה']},
+  ],
+  en:[
+    {word:'Computer',hints:['screen','keyboard','mouse','software']},
+    {word:'Ocean',hints:['waves','salt','swimming','fish']},
+    {word:'Cake',hints:['sweet','birthday','chocolate','flour']},
+    {word:'Football',hints:['player','goal','ball','field']},
+    {word:'House',hints:['roof','wall','door','window']},
+    {word:'Book',hints:['reading','page','author','library']},
+    {word:'Music',hints:['song','instrument','melody','rhythm']},
+    {word:'Lion',hints:['king','jungle','teeth','wild']},
+    {word:'Airplane',hints:['flight','sky','pilot','wings']},
+    {word:'Train',hints:['railway','station','wagon','travel']},
+  ],
+};
+
+let forbTimerStart=0;
+
+function initForbidden(){
+  const players=Object.keys(scores);
+  const words=(FW[lang]||FW.en).sort(()=>Math.random()-0.5);
+  const initSc={};players.forEach(id=>initSc[id]=0);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  update(ref(db,'rooms/'+roomCode),{
+    status:'forbidden',forbWords:words,forbIndex:0,
+    forbDescriber:players[0],forbScores:initSc,forbStart:Date.now(),
+    forbRound:1,players:ps,forbGuessed:{},chat:null
+  });
+  systemMsg(lang==='he'?'🚫 מילה אסורה התחילה!':'🚫 Forbidden Word started!');
+}
+
+function loadForbidden(room){
+  if(!room.forbWords)return;
+  showScreen('forbidden');
+  document.getElementById('forbiddenCode').textContent=roomCode;
+  const w=room.forbWords[room.forbIndex||0];
+  const isDesc=room.forbDescriber===myId;
+  const descName=(scores[room.forbDescriber]||{name:'?'}).name;
+
+  document.getElementById('forbiddenRoundLabel').textContent=t('round')+' '+(room.forbRound||1);
+  document.getElementById('forbiddenDescriberView').style.display=isDesc?'block':'none';
+  document.getElementById('forbiddenGuesserView').style.display=isDesc?'none':'block';
+
+  if(isDesc){
+    document.getElementById('forbiddenWordBig').textContent=w.word;
+    document.getElementById('forbiddenHintsList').innerHTML=w.hints.map(h=>`<li class="forbidden-item">${h}</li>`).join('');
+  } else {
+    document.getElementById('forbiddenWhoDescribes').textContent=descName+' '+t('describing')+'...';
+    // Word dashes
+    const dashes=document.getElementById('forbiddenWordDashes');
+    dashes.innerHTML=w.word.split('').map(c=>c===' '?'<div style="width:12px"></div>':`<div class="word-dash">_</div>`).join('');
+    const guessInp=document.getElementById('forbiddenGuessInp');
+    const alreadyGuessed=(room.forbGuessed||{})[myId];
+    guessInp.disabled=!!alreadyGuessed;
+    guessInp.value=alreadyGuessed?t('alreadyGuessed'):'';
+  }
+
+  const fScores={};Object.entries(scores).forEach(([id,p])=>fScores[id]={...p,score:(room.forbScores||{})[id]||0});
+  renderSidebarScores('forbiddenSidebarScores',fScores,room.forbGuessed||{});
+  renderHostControls('forbiddenHostControls',
+    `<button class="host-ctrl-btn primary" onclick="advanceForbiddenManual()">${t('nextRound')} ▶</button>`);
+
+  // Timer
+  clearInterval(gameTimerInterval);
+  const dur=60;
+  forbTimerStart=room.forbStart||Date.now();
+  gameTimerInterval=setInterval(()=>{
+    const elapsed=(Date.now()-forbTimerStart)/1000;
+    const rem=Math.max(0,dur-elapsed);
+    document.getElementById('forbiddenTimerNum').textContent=Math.ceil(rem);
+    document.getElementById('forbiddenTimerFill').style.width=(rem/dur*100)+'%';
+    document.getElementById('forbiddenTimerFill').classList.toggle('danger',rem<10);
+    if(rem<=0){clearInterval(gameTimerInterval);playSound('timeup');if(isHost)advanceForbidden(room);}
+  },100);
+
+  listenChat('forbidden');
+}
+
+window.submitForbiddenGuess=async function(){
+  const inp=document.getElementById('forbiddenGuessInp');
+  const guess=inp.value.trim();
+  if(!guess)return;
+  const snap=await get(ref(db,'rooms/'+roomCode));
+  const room=snap.val();
+  if(!room||room.status!=='forbidden')return;
+  if((room.forbGuessed||{})[myId])return;
+  const w=room.forbWords[room.forbIndex||0];
+  if(guess.toLowerCase()===w.word.toLowerCase()){
+    playSound('correct');
+    const fSc={...(room.forbScores||{})};
+    fSc[myId]=(fSc[myId]||0)+150;
+    fSc[room.forbDescriber]=(fSc[room.forbDescriber]||0)+100;
+    await update(ref(db,'rooms/'+roomCode),{
+      forbScores:fSc,
+      forbGuessed:{...(room.forbGuessed||{}),[myId]:true}
+    });
+    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:fSc[myId]});
+    inp.value=t('guessedCorrect');inp.disabled=true;
+    systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
+    // Check all guessed
+    const allGuessed=Object.keys(room.players||{}).filter(id=>id!==room.forbDescriber);
+    if(isHost&&allGuessed.every(id=>(room.forbGuessed||{})[id]||(id===myId)))
+      setTimeout(()=>advanceForbidden(room),1200);
+  } else {
+    playSound('wrong');inp.value='';
+  }
+};
+
+window.advanceForbiddenManual=function(){
+  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceForbidden(snap.val()));
+};
+
+async function advanceForbidden(room){
+  clearInterval(gameTimerInterval);
+  const players=Object.keys(room.players||{});
+  const ci=players.indexOf(room.forbDescriber);
+  const nextDesc=players[(ci+1)%players.length];
+  const ni=(room.forbIndex||0)+1;
+  if(ni>=(room.forbWords||[]).length||(room.forbRound||1)>=Math.ceil((room.forbWords||[]).length/players.length)){
+    const fs={};Object.entries(room.forbScores||{}).forEach(([id,s])=>fs[id]=s);
+    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+  } else {
+    await update(ref(db,'rooms/'+roomCode),{
+      forbIndex:ni,forbDescriber:nextDesc,forbStart:Date.now(),
+      forbRound:(room.forbRound||1)+1,forbGuessed:{}
+    });
+  }
+}
+
+// ===========================
+// ===== DRAW ===============
+// ===========================
+const DW={
+  he:['בית','כלב','עץ','שמש','מכונית','אופניים','תפוח','דג','ירח','כוכב','ספר','שעון','פרח','גשר','טלפון','פיל','נחש','רובוט','עוגה','מטוס'],
+  en:['house','dog','tree','sun','car','bicycle','apple','fish','moon','star','book','clock','flower','bridge','phone','elephant','snake','robot','cake','airplane'],
+};
+
+let drawTimerStart=0,drawLastSync=0;
+
+function initDraw(){
+  const players=Object.keys(scores);
+  const words=(DW[lang]||DW.en).sort(()=>Math.random()-0.5);
+  const initSc={};players.forEach(id=>initSc[id]=0);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  update(ref(db,'rooms/'+roomCode),{
+    status:'draw',drawWords:words,drawIndex:0,
+    drawDrawer:players[0],drawScores:initSc,drawStart:Date.now(),
+    drawRound:1,players:ps,drawGuessed:{},drawCanvas:null,chat:null
+  });
+  systemMsg(lang==='he'?'🎨 ציור התחיל!':'🎨 Drawing started!');
+}
+
+function loadDraw(room){
+  if(!room.drawWords)return;
+  showScreen('draw');
+  document.getElementById('drawCode').textContent=roomCode;
+  const word=room.drawWords[room.drawIndex||0];
+  const isDrawer=room.drawDrawer===myId;
+  const drawerName=(scores[room.drawDrawer]||{name:'?'}).name;
+
+  document.getElementById('drawRoundLabel').textContent=t('round')+' '+(room.drawRound||1);
+  document.getElementById('drawToolbar').style.display=isDrawer?'flex':'none';
+  document.getElementById('drawGuessArea').style.display=isDrawer?'none':'block';
+
+  // Word display
+  const hint=document.getElementById('drawWordHint');
+  if(isDrawer){
+    hint.innerHTML=word.split('').map(c=>c===' '?'<div style="width:10px"></div>':`<div class="word-dash">${c}</div>`).join('');
+    document.getElementById('drawInfo').textContent=lang==='he'?'צייר את המילה!':'Draw the word!';
+  } else {
+    hint.innerHTML=word.split('').map(c=>c===' '?'<div style="width:10px"></div>':`<div class="word-dash">_</div>`).join('');
+    const guessed=(room.drawGuessed||{})[myId];
+    document.getElementById('drawInfo').textContent=t('drawerLabel')+' '+drawerName+(guessed?' ✅':'');
+    const ginp=document.getElementById('drawGuessInp');
+    ginp.disabled=!!guessed;ginp.value=guessed?t('alreadyGuessed'):'';
+  }
+
+  // Canvas
+  const canvas=document.getElementById('drawCanvas');
+  canvas.width=Math.min(400,window.innerWidth-40);
+  canvas.height=240;
+  drawCtx=canvas.getContext('2d');
+  drawCtx.fillStyle='#1A1A1A';drawCtx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Load existing canvas
+  if(room.drawCanvas){
+    const img=new Image();
+    img.onload=()=>drawCtx.drawImage(img,0,0,canvas.width,canvas.height);
+    img.src=room.drawCanvas;
+  }
+
+  if(isDrawer)setupCanvas(canvas);
+  else canvas.style.cursor='default';
+
+  // Scores
+  const dScores={};Object.entries(scores).forEach(([id,p])=>dScores[id]={...p,score:(room.drawScores||{})[id]||0});
+  renderSidebarScores('drawSidebarScores',dScores,room.drawGuessed||{});
+  renderHostControls('drawHostControls',
+    `<button class="host-ctrl-btn primary" onclick="advanceDrawManual()">${t('nextRound')} ▶</button>`);
+
+  // Timer
+  clearInterval(gameTimerInterval);
+  const dur=80;
+  drawTimerStart=room.drawStart||Date.now();
+  gameTimerInterval=setInterval(()=>{
+    const elapsed=(Date.now()-drawTimerStart)/1000;
+    const rem=Math.max(0,dur-elapsed);
+    document.getElementById('drawTimerNum').textContent=Math.ceil(rem);
+    document.getElementById('drawTimerFill').style.width=(rem/dur*100)+'%';
+    document.getElementById('drawTimerFill').classList.toggle('danger',rem<10);
+    if(rem<=0){clearInterval(gameTimerInterval);playSound('timeup');if(isHost)advanceDraw(room);}
+  },100);
+
+  listenChat('draw');
+}
+
+function setupCanvas(canvas){
+  canvas.style.cursor='crosshair';
+  let drawing=false,lx=0,ly=0;
+  const pos=(e)=>{
+    const r=canvas.getBoundingClientRect();
+    const cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+    const cy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+    return{x:cx*(canvas.width/r.width),y:cy*(canvas.height/r.height)};
+  };
+  canvas.onmousedown=canvas.ontouchstart=(e)=>{e.preventDefault();drawing=true;const p=pos(e);lx=p.x;ly=p.y;};
+  canvas.onmousemove=canvas.ontouchmove=(e)=>{
+    e.preventDefault();if(!drawing)return;
+    const p=pos(e);
+    drawCtx.strokeStyle=drawColor;drawCtx.lineWidth=drawSize;drawCtx.lineCap='round';drawCtx.lineJoin='round';
+    drawCtx.beginPath();drawCtx.moveTo(lx,ly);drawCtx.lineTo(p.x,p.y);drawCtx.stroke();
+    lx=p.x;ly=p.y;
+    // Sync every 300ms
+    if(Date.now()-drawLastSync>300)syncCanvas();
+  };
+  canvas.onmouseup=canvas.ontouchend=()=>{drawing=false;syncCanvas();};
+}
+
+function syncCanvas(){
+  drawLastSync=Date.now();
+  const canvas=document.getElementById('drawCanvas');
+  update(ref(db,'rooms/'+roomCode),{drawCanvas:canvas.toDataURL('image/jpeg',0.35)});
+}
+
+window.setClr=function(c){drawColor=c;document.querySelectorAll('.clr-btn').forEach(b=>b.classList.toggle('active',b.dataset.c===c));};
+window.setSz=function(s){drawSize=s;document.querySelectorAll('.sz-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.s)===s));};
+window.clearDraw=function(){drawCtx.fillStyle='#1A1A1A';drawCtx.fillRect(0,0,document.getElementById('drawCanvas').width,240);syncCanvas();};
+
+window.submitDrawGuess=function(){checkDrawGuess(true);};
+window.checkDrawGuess=async function(submit=false){
+  const inp=document.getElementById('drawGuessInp');
+  if(!inp||inp.disabled)return;
+  const guess=inp.value.trim();
+  if(!guess)return;
+  const snap=await get(ref(db,'rooms/'+roomCode));
+  const room=snap.val();
+  if(!room||room.status!=='draw')return;
+  if((room.drawGuessed||{})[myId])return;
+  const word=room.drawWords[room.drawIndex||0];
+  if(guess.toLowerCase()===word.toLowerCase()){
+    playSound('correct');
+    const elapsed=Math.floor((Date.now()-(room.drawStart||Date.now()))/1000);
+    const pts=Math.max(50,200-elapsed*2);
+    const dSc={...(room.drawScores||{})};
+    dSc[myId]=(dSc[myId]||0)+pts;
+    dSc[room.drawDrawer]=(dSc[room.drawDrawer]||0)+80;
+    await update(ref(db,'rooms/'+roomCode),{
+      drawScores:dSc,
+      drawGuessed:{...(room.drawGuessed||{}),[myId]:true}
+    });
+    await update(ref(db,'rooms/'+roomCode+'/players/'+myId),{score:dSc[myId]});
+    inp.value=t('guessedCorrect');inp.disabled=true;
+    systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
+    const allGuessers=Object.keys(room.players||{}).filter(id=>id!==room.drawDrawer);
+    if(isHost&&allGuessers.every(id=>(room.drawGuessed||{})[id]||(id===myId)))
+      setTimeout(()=>advanceDraw(room),1200);
+  } else if(submit){playSound('wrong');}
+};
+
+window.advanceDrawManual=function(){
+  get(ref(db,'rooms/'+roomCode)).then(snap=>advanceDraw(snap.val()));
+};
+
+async function advanceDraw(room){
+  clearInterval(gameTimerInterval);
+  const players=Object.keys(room.players||{});
+  const ci=players.indexOf(room.drawDrawer);
+  const nextDrawer=players[(ci+1)%players.length];
+  const ni=(room.drawIndex||0)+1;
+  if(ni>=players.length*2||(room.drawRound||1)>=players.length*2){
+    const fs={};Object.entries(room.drawScores||{}).forEach(([id,s])=>fs[id]=s);
+    await update(ref(db,'rooms/'+roomCode),{status:'results',finalScores:fs});
+  } else {
+    await update(ref(db,'rooms/'+roomCode),{
+      drawIndex:ni,drawDrawer:nextDrawer,drawStart:Date.now(),
+      drawRound:(room.drawRound||1)+1,drawGuessed:{},drawCanvas:null
+    });
+  }
+}
+
+// ===========================
+// ===== RESULTS ============
+// ===========================
+function showResults(room){
+  clearAllTimers();
+  showScreen('results');
+  const fs=room.finalScores||{};
+  const sorted=Object.entries(fs).sort((a,b)=>b[1]-a[1]);
+  // Podium
+  const podium=document.getElementById('podiumWrap');
+  const cls=['gold','silver','bronze'];
+  const medals=['🥇','🥈','🥉'];
+  const order=[1,0,2];
+  podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos,i)=>{
+    const [id,pts]=sorted[pos]||[null,0];
+    const name=(scores[id]||{name:'?'}).name;
+    return`<div class="podium-col">
+      <div class="podium-bar ${cls[i]}">${medals[pos]||pos+1}</div>
+      <div class="podium-name">${name}</div>
+      <div style="font-size:0.75rem;color:var(--gold);">${pts}</div>
+    </div>`;
+  }).join('');
+  // Table
+  document.getElementById('scoreTable').innerHTML=sorted.map(([id,pts],i)=>`
+    <div class="score-row-final ${id===myId?'me-row':''}">
+      <div class="rank-num">${medals[i]||i+1}</div>
+      <div class="score-final-name">${(scores[id]||{name:'?'}).name}${id===myId?' 👤':''}</div>
+      <div class="score-final-pts">${pts}</div>
+    </div>`).join('');
+  playSound('start');
+}
+
+window.backToLobby=async function(){
+  if(isHost){
+    const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+    await update(ref(db,'rooms/'+roomCode),{
+      status:'lobby',triviaAnswers:null,triviaIndex:0,
+      drawCanvas:null,finalScores:null,chat:null,players:ps
+    });
+  }
+};
+
+// ===== AUTO JOIN FROM URL =====
+const params=new URLSearchParams(window.location.search);
+if(params.get('join')){
+  document.getElementById('joinCodeInput').value=params.get('join');
+  goTo('joinName');
+}
+
+applyT();
+</script>
+</body>
+</html>
