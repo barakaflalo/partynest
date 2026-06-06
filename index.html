@@ -4404,109 +4404,111 @@ function drawRaceTrack(room) {
       }
     });
 
-    // Roadside scenery with parallax
-    var sceneScale = Math.max(0.05, (1-t));
-    var sceneOffset = segX; // follows road curve
+    // Roadside scenery - sprite scaling (Test Drive style)
+    // Use a seeded random per segment position so objects are consistent
+    var segSeed = Math.floor((camProgress * 1000 + seg) * 7919) % 1000;
+    var segRand = (segSeed * 9301 + 49297) % 233280 / 233280;
+    var segRand2 = (segSeed * 4847 + 13781) % 199999 / 199999;
     
-    // Light poles every 8 segments
-    if(seg % 8 === 0 && seg > 2) {
-      var poleH = sceneScale * 75;
-      var poleW = Math.max(1, sceneScale * 5);
-      var poleGap = segW/2 + kerbW + sceneScale*12;
-      // Right pole
-      ctx.fillStyle = '#999';
-      ctx.fillRect(sceneOffset + poleGap, segY - poleH, poleW, poleH);
-      // Light bulb
-      var bulbR = Math.max(1.5, sceneScale * 7);
-      ctx.fillStyle = (Math.floor(seg/8) % 2 === 0) ? '#FFFFAA' : '#FF5555';
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.shadowBlur = sceneScale * 10;
-      ctx.beginPath();
-      ctx.arc(sceneOffset + poleGap + poleW/2, segY - poleH, bulbR, 0, Math.PI*2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      // Left pole
-      ctx.fillStyle = '#999';
-      ctx.fillRect(sceneOffset - poleGap - poleW, segY - poleH, poleW, poleH);
-      ctx.fillStyle = (Math.floor(seg/8) % 2 === 0) ? '#FFFFAA' : '#FF5555';
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.shadowBlur = sceneScale * 10;
-      ctx.beginPath();
-      ctx.arc(sceneOffset - poleGap, segY - poleH, bulbR, 0, Math.PI*2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-    
-    // Trees every 15 segments (alternate sides)
-    if(seg % 15 === 5 && seg > 3) {
-      var treeScale = sceneScale;
-      var treeSide = Math.floor(seg/15) % 2 === 0 ? 1 : -1;
-      var treeX = sceneOffset + treeSide * (segW/2 + kerbW + treeScale*30);
-      var treeH = treeScale * 90;
-      var trunkH = treeH * 0.3;
-      var trunkW = treeScale * 8;
-      // Trunk
-      ctx.fillStyle = '#5C3A1E';
-      ctx.fillRect(treeX - trunkW/2, segY - trunkH, trunkW, trunkH);
-      // Foliage (triangle tree)
-      ctx.fillStyle = '#2D6A2D';
-      ctx.beginPath();
-      ctx.moveTo(treeX, segY - treeH);
-      ctx.lineTo(treeX - treeScale*20, segY - trunkH);
-      ctx.lineTo(treeX + treeScale*20, segY - trunkH);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#3A8A3A';
-      ctx.beginPath();
-      ctx.moveTo(treeX, segY - treeH*1.1);
-      ctx.lineTo(treeX - treeScale*14, segY - trunkH - treeH*0.25);
-      ctx.lineTo(treeX + treeScale*14, segY - trunkH - treeH*0.25);
-      ctx.closePath();
-      ctx.fill();
-    }
-    
-    // Billboard signs every 25 segments
-    if(seg % 25 === 10 && seg > 3) {
-      var signScale = sceneScale;
-      var signX = sceneOffset - (segW/2 + kerbW + signScale*35);
-      var signW = signScale * 50;
-      var signH = signScale * 30;
-      var signY = segY - signScale*60;
-      // Post
-      ctx.fillStyle = '#777';
-      ctx.fillRect(signX - signScale*2, segY - signScale*30, signScale*4, signScale*30);
-      // Board
-      ctx.fillStyle = '#1A1A2E';
-      ctx.fillRect(signX - signW/2, signY - signH, signW, signH);
-      ctx.strokeStyle = '#C9A84C';
-      ctx.lineWidth = Math.max(1, signScale*2);
-      ctx.strokeRect(signX - signW/2, signY - signH, signW, signH);
-      // Text on sign
-      if(signScale > 0.3) {
-        ctx.fillStyle = '#C9A84C';
-        ctx.font = 'bold '+Math.max(6, signScale*14)+'px Cinzel,serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('🏎️', signX, signY - signH*0.3);
+    if(seg > 2 && seg < numSegs - 2) {
+      var sceneScale = Math.max(0.02, (1-t) * 1.2);
+      var sceneGap = segW/2 + kerbW;
+      
+      // RIGHT SIDE objects
+      var rightX = segX + sceneGap + sceneScale * 15;
+      // LEFT SIDE objects  
+      var leftX = segX - sceneGap - sceneScale * 15;
+      
+      // --- LIGHT POLES (every ~8 units) ---
+      var polePhase = (camProgress * 1000 + seg) % 8;
+      if(polePhase < 1.2) {
+        var pH = sceneScale * 80;
+        var pW = Math.max(1, sceneScale * 4);
+        ctx.fillStyle = '#AAAAAA';
+        ctx.fillRect(rightX, segY - pH, pW, pH);
+        ctx.fillRect(leftX - pW, segY - pH, pW, pH);
+        var bulbR = Math.max(1, sceneScale * 6);
+        var bulbColor = Math.floor(camProgress*100 + seg/8) % 3 === 0 ? '#FFFFAA' : '#FF5544';
+        ctx.fillStyle = bulbColor;
+        ctx.shadowColor = bulbColor; ctx.shadowBlur = sceneScale * 12;
+        ctx.beginPath(); ctx.arc(rightX + pW/2, segY - pH, bulbR, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(leftX - pW/2, segY - pH, bulbR, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
       }
-    }
-    
-    // Crowd stands far back (near horizon)
-    if(seg > 60 && seg % 4 === 0) {
-      var crowdY = segY;
-      var crowdX = sceneOffset + segW/2 + kerbW + 2;
-      var crowdH = Math.max(1, sceneScale * 20);
-      // Stand base
-      ctx.fillStyle = '#2A2A4A';
-      ctx.fillRect(crowdX, crowdY - crowdH, sceneScale*15, crowdH);
-      // Crowd dots
-      if(sceneScale > 0.15) {
-        var crowdColors = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94'];
-        for(var ci=0; ci<3; ci++) {
-          ctx.fillStyle = crowdColors[(seg+ci)%crowdColors.length];
-          ctx.beginPath();
-          ctx.arc(crowdX + ci*sceneScale*4 + sceneScale*2, crowdY - crowdH + sceneScale*5, 
-                  Math.max(1, sceneScale*3), 0, Math.PI*2);
-          ctx.fill();
+      
+      // --- TREES (random side, random spacing) ---
+      var treePhase = (camProgress * 1000 + seg * 1.3) % 12;
+      if(treePhase < 1.5 && sceneScale > 0.05) {
+        var side = segRand > 0.5 ? 1 : -1;
+        var tX = side > 0 ? rightX + sceneScale*20 : leftX - sceneScale*20;
+        var tH = sceneScale * (60 + segRand2 * 40); // varied height!
+        var tW = sceneScale * (15 + segRand2 * 10);
+        var trunkH = tH * 0.35;
+        // Trunk
+        ctx.fillStyle = '#4A2800';
+        ctx.fillRect(tX - sceneScale*3, segY - trunkH, sceneScale*6, trunkH);
+        // Different tree types based on seed
+        if(segRand2 < 0.4) {
+          // Pine tree (triangle)
+          ctx.fillStyle = '#1A5C1A';
+          ctx.beginPath(); ctx.moveTo(tX, segY-tH); ctx.lineTo(tX-tW, segY-trunkH); ctx.lineTo(tX+tW, segY-trunkH); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#267326';
+          ctx.beginPath(); ctx.moveTo(tX, segY-tH*1.1); ctx.lineTo(tX-tW*0.7, segY-trunkH-tH*0.3); ctx.lineTo(tX+tW*0.7, segY-trunkH-tH*0.3); ctx.closePath(); ctx.fill();
+        } else if(segRand2 < 0.7) {
+          // Round tree (circle)
+          ctx.fillStyle = '#2D7A2D';
+          ctx.beginPath(); ctx.arc(tX, segY-trunkH-tW, tW, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#3A9A3A';
+          ctx.beginPath(); ctx.arc(tX - tW*0.3, segY-trunkH-tW*1.2, tW*0.6, 0, Math.PI*2); ctx.fill();
+        } else {
+          // Bare tree (branches)
+          ctx.strokeStyle = '#3A2000'; ctx.lineWidth = Math.max(1, sceneScale*3);
+          ctx.beginPath(); ctx.moveTo(tX, segY-trunkH); ctx.lineTo(tX, segY-tH); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(tX, segY-tH*0.7); ctx.lineTo(tX-tW*0.6, segY-tH*0.9); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(tX, segY-tH*0.6); ctx.lineTo(tX+tW*0.5, segY-tH*0.75); ctx.stroke();
+        }
+      }
+      
+      // --- BUILDINGS/SIGNS (rare, random) ---
+      var buildPhase = (camProgress * 1000 + seg * 2.1) % 30;
+      if(buildPhase < 1.2 && sceneScale > 0.08 && segRand > 0.3) {
+        var bSide = segRand < 0.6 ? 1 : -1;
+        var bX = bSide > 0 ? rightX + sceneScale*40 : leftX - sceneScale*40;
+        var bW = sceneScale * (40 + segRand2 * 30);
+        var bH = sceneScale * (30 + segRand2 * 50);
+        // Building
+        ctx.fillStyle = '#' + Math.floor(30 + segRand2*20).toString(16) + Math.floor(30 + segRand2*20).toString(16) + Math.floor(40 + segRand2*20).toString(16);
+        ctx.fillRect(bX - bW/2, segY - bH, bW, bH);
+        // Windows
+        if(sceneScale > 0.15) {
+          ctx.fillStyle = 'rgba(255,240,150,0.7)';
+          for(var wi=0; wi<3; wi++) {
+            for(var wj=0; wj<2; wj++) {
+              if((segSeed + wi + wj*3) % 3 !== 0) { // random windows on/off
+                ctx.fillRect(bX - bW/2 + bW*(wi+0.2)/3, segY - bH*(wj+0.3)/2, sceneScale*5, sceneScale*5);
+              }
+            }
+          }
+        }
+        // Roof
+        ctx.fillStyle = '#CC3333';
+        ctx.beginPath(); ctx.moveTo(bX-bW/2-sceneScale*3, segY-bH); ctx.lineTo(bX, segY-bH-sceneScale*15); ctx.lineTo(bX+bW/2+sceneScale*3, segY-bH); ctx.closePath(); ctx.fill();
+      }
+      
+      // --- CROWD near finish (last 10% of track) ---
+      var trackPos = (camProgress + seg * camFOV) % 1;
+      if(trackPos > 0.92 || trackPos < 0.08) {
+        var crowdColors2 = ['#FF6B6B','#4ECDC4','#FFE66D','#A8E6CF','#FF8B94','#C9A84C'];
+        var numHeads = Math.floor(sceneScale * 8 + 2);
+        for(var ci2=0; ci2<numHeads; ci2++) {
+          var headX = rightX + sceneScale * (ci2 * 8 + 5);
+          var headR = Math.max(1, sceneScale * 4);
+          ctx.fillStyle = crowdColors2[(ci2 + segSeed) % crowdColors2.length];
+          ctx.beginPath(); ctx.arc(headX, segY - headR*2, headR, 0, Math.PI*2); ctx.fill();
+          // Left side crowd
+          var headXL = leftX - sceneScale * (ci2 * 8 + 5);
+          ctx.fillStyle = crowdColors2[(ci2 + segSeed + 3) % crowdColors2.length];
+          ctx.beginPath(); ctx.arc(headXL, segY - headR*2, headR, 0, Math.PI*2); ctx.fill();
         }
       }
     }
