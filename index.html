@@ -12,379 +12,7 @@
 <title>PartyNest — Multiplayer Games</title>
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
-// ============================================================
-// ===== VOTE GAME ============================================
-// ============================================================
-const WYR_Q={
-  en:[
-    {a:'Fly',b:'Be invisible'},
-    {a:'Always be cold',b:'Always be hot'},
-    {a:'Never use internet',b:'Never watch TV'},
-    {a:'Be super strong',b:'Be super smart'},
-    {a:'Live in the city',b:'Live in the country'},
-    {a:'Eat only sweet',b:'Eat only salty'},
-    {a:'Talk to animals',b:'Speak all languages'},
-    {a:'Go to the past',b:'Go to the future'},
-    {a:'Have more time',b:'Have more money'},
-    {a:'Never sleep',b:'Sleep all day'},
-  ],
-  he:[
-    {a:'לעוף',b:'להיות בלתי נראה'},
-    {a:'תמיד קר',b:'תמיד חם'},
-    {a:'בלי אינטרנט',b:'בלי טלוויזיה'},
-    {a:'חזק מאוד',b:'חכם מאוד'},
-    {a:'לגור בעיר',b:'לגור בכפר'},
-    {a:'רק מתוק',b:'רק מלוח'},
-    {a:'לדבר עם בעלי חיים',b:'לדבר כל שפה'},
-    {a:'לנסוע לעבר',b:'לנסוע לעתיד'},
-    {a:'יותר זמן',b:'יותר כסף'},
-    {a:'לא לישון לעולם',b:'לישון כל היום'},
-  ],
-};
-
-function initVote(){
-  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-  db.ref('rooms/'+roomCode).update({
-    status:'vote',voteState:'host_input',votePlayers:ps,chat:null
-  });
-  systemMsg(t('vote')+' started!');
-}
-
-function loadVote(room){
-  showScreen('vote');
-  document.getElementById('voteCode').textContent=roomCode;
-  const vs=room.voteState||'host_input';
-  document.getElementById('voteHostArea').style.display=(isHost&&vs==='host_input')?'block':'none';
-  document.getElementById('voteQuestionArea').style.display=(vs==='voting')?'block':'none';
-  if(vs==='voting'&&room.voteQuestion){
-    document.getElementById('voteQText').textContent=room.voteQuestion;
-    document.getElementById('voteTextA').textContent=room.voteA||'A';
-    document.getElementById('voteTextB').textContent=room.voteB||'B';
-    const votes=room.voteAnswers||{};
-    const total=Object.keys(scores).length||1;
-    const cntA=Object.values(votes).filter(v=>v==='A').length;
-    const cntB=Object.values(votes).filter(v=>v==='B').length;
-    const pctA=total>0?Math.round(cntA/total*100):0;
-    const pctB=total>0?Math.round(cntB/total*100):0;
-    document.getElementById('voteBarA').style.width=pctA+'%';
-    document.getElementById('voteBarB').style.width=pctB+'%';
-    document.getElementById('votePctA').textContent=pctA+'%';
-    document.getElementById('votePctB').textContent=pctB+'%';
-    document.getElementById('voteCount').textContent=(cntA+cntB)+'/'+total+' voted';
-    const myVote=votes[myId];
-    document.getElementById('voteOptA').classList.toggle('voted',myVote==='A');
-    document.getElementById('voteOptB').classList.toggle('voted',myVote==='B');
-    if(myVote){document.getElementById('voteOptA').onclick=null;document.getElementById('voteOptB').onclick=null;}
-  }
-  renderSidebarScores('voteSidebarScores',room.votePlayers||scores,{});
-  renderHostControls('voteHostControls',
-    isHost?'<button class="host-ctrl-btn primary" onclick="nextVoteRound()">'+t('nextRound')+' ▶</button>':'');
-  listenChat('vote');
-}
-
-window.launchVote=function(){
-  var q=document.getElementById('voteQ').value.trim();
-  var a=document.getElementById('voteA').value.trim()||'A';
-  var b=document.getElementById('voteB').value.trim()||'B';
-  if(!q)return;
-  db.ref('rooms/'+roomCode).update({voteQuestion:q,voteA:a,voteB:b,voteState:'voting',voteAnswers:{}});
-};
-
-window.castVote=async function(choice){
-  const snap=await db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).once('value');
-  if(snap.val())return;
-  db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).set(choice);
-};
-
-window.nextVoteRound=function(){
-  document.getElementById('voteQ').value='';
-  document.getElementById('voteA').value='';
-  document.getElementById('voteB').value='';
-  db.ref('rooms/'+roomCode).update({voteState:'host_input',voteQuestion:'',voteAnswers:{}});
-};
-
-// ============================================================
-// ===== WHO AM I =============================================
-// ============================================================
-const WHOAMI_WORDS={
-  en:['Einstein','Napoleon','Batman','Cleopatra','Elon Musk','Spider-Man','Shakespeare','Beyonce','Harry Potter','Gandhi','Mickey Mouse','Darth Vader','Queen Elizabeth','Sherlock Holmes','Mario','Wonder Woman'],
-  he:['איינשטיין','נפוליאון','באטמן','קליאופטרה','אלון מאסק','ספיידרמן','שייקספיר','גנדי','הרי פוטר','מיקי מאוס','דארת׳ ויידר','שרלוק הולמס','מריו','וונדר וומן'],
-};
-
-function initWhoami(){
-  const players=Object.keys(scores);
-  const words=(WHOAMI_WORDS[lang]||WHOAMI_WORDS.en).sort(()=>Math.random()-0.5);
-  const assignments={};
-  players.forEach((id,i)=>assignments[id]=words[i%words.length]);
-  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,identity:assignments[id]});
-  db.ref('rooms/'+roomCode).update({status:'whoami',whoamiPlayers:ps,whoamiCurrent:players[0],chat:null});
-  systemMsg(t('whoami')+' started!');
-}
-
-function loadWhoami(room){
-  showScreen('whoami');
-  document.getElementById('whoamiCode').textContent=roomCode;
-  const players=room.whoamiPlayers||{};
-  const myData=players[myId]||{};
-  document.getElementById('whoamiIdentity').textContent=myData.identity||'?';
-  const currentId=room.whoamiCurrent;
-  const currentName=(scores[currentId]||{name:'?'}).name;
-  const isMyTurn=currentId===myId;
-  document.getElementById('whoamiCurrentPlayer').textContent=isMyTurn?'🎯 Your turn to ask!':currentName+' is asking...';
-  document.getElementById('whoamiGuesserArea').style.display=isMyTurn?'none':'block';
-  renderSidebarScores('whoamiSidebarScores',players,{});
-  renderHostControls('whoamiHostControls',
-    isHost?'<button class="host-ctrl-btn primary" onclick="nextWhoamiTurn()">'+t('nextRound')+' ▶</button>':'');
-  listenChat('whoami');
-}
-
-window.whoamiAnswer=function(yes){
-  const answer=yes?'✅ Yes!':'❌ No!';
-  systemMsg(answer);
-};
-
-window.nextWhoamiTurn=function(){
-  db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(s){
-    var players=Object.keys(s.val()||{});
-    var cur=players.indexOf(db.ref('rooms/'+roomCode+'/whoamiCurrent').toString());
-    var next=players[(cur+1)%players.length];
-    db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
-  });
-  db.ref('rooms/'+roomCode+'/whoamiCurrent').once('value').then(function(s){
-    var cur=s.val();
-    db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(sp){
-      var players=Object.keys(sp.val()||{});
-      var idx=players.indexOf(cur);
-      var next=players[(idx+1)%players.length];
-      db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
-    });
-  });
-};
-
-// ============================================================
-// ===== HOT POTATO (BOMB) ====================================
-// ============================================================
-var bombTimerInterval=null;
-
-function initBomb(){
-  const players=Object.keys(scores);
-  const duration=20+Math.floor(Math.random()*20); // 20-40 seconds
-  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,alive:true});
-  db.ref('rooms/'+roomCode).update({
-    status:'bomb',bombHolder:players[0],bombDuration:duration,
-    bombStart:Date.now(),bombRound:1,bombPlayers:ps,chat:null
-  });
-  systemMsg('💣 Hot Potato started!');
-}
-
-function loadBomb(room){
-  if(!room.bombHolder)return;
-  showScreen('bomb');
-  document.getElementById('bombCode').textContent=roomCode;
-  document.getElementById('bombRoundLbl').textContent=t('round')+' '+(room.bombRound||1);
-  const holderName=(scores[room.bombHolder]||{name:'?'}).name;
-  const isHolder=room.bombHolder===myId;
-  document.getElementById('bombHolder').textContent='🔥 '+holderName;
-  document.getElementById('bombStatus').textContent=isHolder?'YOU HAVE THE BOMB! Pass it!':'Watch out...';
-  document.getElementById('bombPassBtn').style.display=isHolder?'block':'none';
-  // Timer
-  clearInterval(bombTimerInterval);
-  const dur=room.bombDuration||30;
-  const start=room.bombStart||Date.now();
-  bombTimerInterval=setInterval(function(){
-    var elapsed=(Date.now()-start)/1000;
-    var rem=Math.max(0,dur-elapsed);
-    document.getElementById('bombTimerNum').textContent=Math.ceil(rem);
-    document.getElementById('bombTimerFill').style.width=(rem/dur*100)+'%';
-    if(rem<=0){
-      clearInterval(bombTimerInterval);
-      if(isHost) bombExplode(room);
-    }
-  },100);
-  renderSidebarScores('bombSidebarScores',room.bombPlayers||scores,{});
-  renderHostControls('bombHostControls','');
-  listenChat('bomb');
-}
-
-window.passBomb=async function(){
-  const snap=await db.ref('rooms/'+roomCode).once('value');
-  const room=snap.val();
-  if(room.bombHolder!==myId)return;
-  const players=Object.keys(room.bombPlayers||{}).filter(id=>id!==myId&&(room.bombPlayers[id].alive!==false));
-  if(!players.length)return;
-  const next=players[Math.floor(Math.random()*players.length)];
-  const newDur=Math.max(10,(room.bombDuration||30)-2);
-  db.ref('rooms/'+roomCode).update({bombHolder:next,bombStart:Date.now(),bombDuration:newDur});
-};
-
-async function bombExplode(room){
-  const loser=room.bombHolder;
-  const loserName=(scores[loser]||{name:'?'}).name;
-  systemMsg('💥 '+loserName+' exploded!');
-  // Give points to survivors
-  const ps={...(room.bombPlayers||{})};
-  Object.keys(ps).forEach(id=>{if(id!==loser)ps[id].score=(ps[id].score||0)+100;});
-  ps[loser].alive=false;
-  // Check if only one left
-  const alive=Object.keys(ps).filter(id=>ps[id].alive!==false);
-  if(alive.length<=1){
-    const fs={};Object.entries(ps).forEach(([id,p])=>fs[id]=p.score||0);
-    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
-  } else {
-    const next=alive[Math.floor(Math.random()*alive.length)];
-    const newDur=Math.max(10,(room.bombDuration||30)-3);
-    await db.ref('rooms/'+roomCode).update({bombPlayers:ps,bombHolder:next,bombStart:Date.now(),bombDuration:newDur,bombRound:(room.bombRound||1)+1});
-  }
-}
-
-// ============================================================
-// ===== WOULD YOU RATHER =====================================
-// ============================================================
-var wyrTimerInterval=null;
-
-function initWyr(){
-  const qs=(WYR_Q[lang]||WYR_Q.en).sort(()=>Math.random()-0.5).slice(0,10);
-  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-  db.ref('rooms/'+roomCode).update({
-    status:'wyr',wyrQuestions:qs,wyrIndex:0,
-    wyrAnswers:{},wyrStart:Date.now(),wyrPlayers:ps,chat:null
-  });
-  systemMsg(t('wyr')+' started!');
-}
-
-function loadWyr(room){
-  if(!room.wyrQuestions)return;
-  showScreen('wyr');
-  document.getElementById('wyrCode').textContent=roomCode;
-  const idx=room.wyrIndex||0;
-  const q=room.wyrQuestions[idx];
-  document.getElementById('wyrRound').textContent=t('round')+' '+(idx+1)+'/'+(room.wyrQuestions.length);
-  document.getElementById('wyrTextA').textContent=q.a;
-  document.getElementById('wyrTextB').textContent=q.b;
-  const votes=room.wyrAnswers||{};
-  const myVote=votes[myId];
-  document.getElementById('wyrOptA').classList.toggle('wyr-voted',myVote==='A');
-  document.getElementById('wyrOptB').classList.toggle('wyr-voted',myVote==='B');
-  const total=Object.keys(scores).length||1;
-  const voted=Object.keys(votes).length;
-  document.getElementById('wyrVoted').textContent=voted+'/'+total+' voted';
-  renderSidebarScores('wyrSidebarScores',room.wyrPlayers||scores,votes);
-  renderHostControls('wyrHostControls',
-    isHost?'<button class="host-ctrl-btn primary" onclick="advanceWyr()">'+t('nextRound')+' ▶</button>':'');
-  // Timer 15s
-  clearInterval(wyrTimerInterval);
-  const start=room.wyrStart||Date.now();
-  wyrTimerInterval=setInterval(function(){
-    var rem=Math.max(0,15-(Date.now()-start)/1000);
-    document.getElementById('wyrTimer').textContent=Math.ceil(rem);
-    document.getElementById('wyrTimerFill').style.width=(rem/15*100)+'%';
-    if(rem<=0){clearInterval(wyrTimerInterval);if(isHost)setTimeout(advanceWyr,1200);}
-  },100);
-  listenChat('wyr');
-}
-
-window.voteWyr=function(choice){
-  db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value').then(function(s){
-    if(s.val())return;
-    db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).set(choice);
-    // Give points
-    db.ref('rooms/'+roomCode+'/wyrPlayers/'+myId+'/score').transaction(function(s){return (s||0)+50;});
-  });
-};
-
-window.advanceWyr=async function(){
-  clearInterval(wyrTimerInterval);
-  const snap=await db.ref('rooms/'+roomCode).once('value');
-  const r=snap.val();
-  const next=(r.wyrIndex||0)+1;
-  if(next>=(r.wyrQuestions||[]).length){
-    const fs={};Object.entries(r.wyrPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
-    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
-  } else {
-    await db.ref('rooms/'+roomCode).update({wyrIndex:next,wyrAnswers:{},wyrStart:Date.now()});
-  }
-};
-
-// ============================================================
-// ===== FASTEST FINGER =======================================
-// ============================================================
-var fastestTimerInterval=null;
-
-function initFastest(){
-  const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
-  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
-  db.ref('rooms/'+roomCode).update({
-    status:'fastest',fastestQuestions:qs,fastestIndex:0,
-    fastestBuzzed:null,fastestStart:Date.now(),fastestPlayers:ps,
-    fastestAnswered:{},chat:null
-  });
-  systemMsg('⚡ Fastest Finger started!');
-}
-
-function loadFastest(room){
-  if(!room.fastestQuestions)return;
-  showScreen('fastest');
-  document.getElementById('fastestCode').textContent=roomCode;
-  const idx=room.fastestIndex||0;
-  const q=room.fastestQuestions[idx];
-  document.getElementById('fastestQLbl').textContent='Q '+(idx+1)+'/'+(room.fastestQuestions.length);
-  document.getElementById('fastestQText').textContent=q.q;
-  const buzzed=room.fastestBuzzed;
-  const buzzedName=buzzed?(scores[buzzed]||{name:'?'}).name:null;
-  document.getElementById('fastestBuzzBtn').style.display=(!buzzed&&!room.fastestAnswered?.[myId])?'block':'none';
-  document.getElementById('fastestBuzzed').style.display=buzzed?'block':'none';
-  if(buzzed) document.getElementById('fastestBuzzed').textContent='⚡ '+buzzedName+'  — Answer: '+q.a;
-  document.getElementById('fastestStatus').textContent=Object.keys(room.fastestAnswered||{}).length+'/'+Object.keys(scores).length+' answered';
-  renderSidebarScores('fastestSidebarScores',room.fastestPlayers||scores,room.fastestAnswered||{});
-  renderHostControls('fastestHostControls',
-    isHost?'<button class="host-ctrl-btn primary" onclick="advanceFastest()">'+t('nextRound')+' ▶</button>':'');
-  clearInterval(fastestTimerInterval);
-  if(!buzzed){
-    const start=room.fastestStart||Date.now();
-    fastestTimerInterval=setInterval(function(){
-      var rem=Math.max(0,5-(Date.now()-start)/1000);
-      document.getElementById('fastestTimer').textContent=Math.ceil(rem);
-      document.getElementById('fastestTimerFill').style.width=(rem/5*100)+'%';
-      if(rem<=0){clearInterval(fastestTimerInterval);if(isHost)setTimeout(advanceFastest,1500);}
-    },100);
-  }
-  listenChat('fastest');
-}
-
-window.buzzIn=async function(){
-  const snap=await db.ref('rooms/'+roomCode).once('value');
-  const r=snap.val();
-  if(r.fastestBuzzed)return;
-  const elapsed=(Date.now()-(r.fastestStart||Date.now()))/1000;
-  const pts=Math.max(100,500-Math.floor(elapsed*50));
-  await db.ref('rooms/'+roomCode+'/fastestBuzzed').set(myId);
-  await db.ref('rooms/'+roomCode+'/fastestPlayers/'+myId+'/score').transaction(s=>(s||0)+pts);
-  await db.ref('rooms/'+roomCode+'/fastestAnswered/'+myId).set(true);
-  clearInterval(fastestTimerInterval);
-  playSound('correct');
-};
-
-window.advanceFastest=async function(){
-  clearInterval(fastestTimerInterval);
-  const snap=await db.ref('rooms/'+roomCode).once('value');
-  const r=snap.val();
-  const next=(r.fastestIndex||0)+1;
-  if(next>=(r.fastestQuestions||[]).length){
-    const fs={};Object.entries(r.fastestPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
-    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
-  } else {
-    await db.ref('rooms/'+roomCode).update({fastestIndex:next,fastestBuzzed:null,fastestAnswered:{},fastestStart:Date.now()});
-  }
-};
-
-// Simple games - Simon, Anagram, Complete, Number - use Trivia engine with different UI
-function initSimon(){initTrivia();} // Uses trivia with custom display
-function initAnagram(){initTrivia();}
-function initComplete(){initTrivia();}
-function initNumber(){initTrivia();}
-
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -2953,6 +2581,380 @@ if(params.get('join')){
 }
 
 applyT();
+
+
+// ============================================================
+// ===== VOTE GAME ============================================
+// ============================================================
+const WYR_Q={
+  en:[
+    {a:'Fly',b:'Be invisible'},
+    {a:'Always be cold',b:'Always be hot'},
+    {a:'Never use internet',b:'Never watch TV'},
+    {a:'Be super strong',b:'Be super smart'},
+    {a:'Live in the city',b:'Live in the country'},
+    {a:'Eat only sweet',b:'Eat only salty'},
+    {a:'Talk to animals',b:'Speak all languages'},
+    {a:'Go to the past',b:'Go to the future'},
+    {a:'Have more time',b:'Have more money'},
+    {a:'Never sleep',b:'Sleep all day'},
+  ],
+  he:[
+    {a:'לעוף',b:'להיות בלתי נראה'},
+    {a:'תמיד קר',b:'תמיד חם'},
+    {a:'בלי אינטרנט',b:'בלי טלוויזיה'},
+    {a:'חזק מאוד',b:'חכם מאוד'},
+    {a:'לגור בעיר',b:'לגור בכפר'},
+    {a:'רק מתוק',b:'רק מלוח'},
+    {a:'לדבר עם בעלי חיים',b:'לדבר כל שפה'},
+    {a:'לנסוע לעבר',b:'לנסוע לעתיד'},
+    {a:'יותר זמן',b:'יותר כסף'},
+    {a:'לא לישון לעולם',b:'לישון כל היום'},
+  ],
+};
+
+function initVote(){
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'vote',voteState:'host_input',votePlayers:ps,chat:null
+  });
+  systemMsg(t('vote')+' started!');
+}
+
+function loadVote(room){
+  showScreen('vote');
+  document.getElementById('voteCode').textContent=roomCode;
+  const vs=room.voteState||'host_input';
+  document.getElementById('voteHostArea').style.display=(isHost&&vs==='host_input')?'block':'none';
+  document.getElementById('voteQuestionArea').style.display=(vs==='voting')?'block':'none';
+  if(vs==='voting'&&room.voteQuestion){
+    document.getElementById('voteQText').textContent=room.voteQuestion;
+    document.getElementById('voteTextA').textContent=room.voteA||'A';
+    document.getElementById('voteTextB').textContent=room.voteB||'B';
+    const votes=room.voteAnswers||{};
+    const total=Object.keys(scores).length||1;
+    const cntA=Object.values(votes).filter(v=>v==='A').length;
+    const cntB=Object.values(votes).filter(v=>v==='B').length;
+    const pctA=total>0?Math.round(cntA/total*100):0;
+    const pctB=total>0?Math.round(cntB/total*100):0;
+    document.getElementById('voteBarA').style.width=pctA+'%';
+    document.getElementById('voteBarB').style.width=pctB+'%';
+    document.getElementById('votePctA').textContent=pctA+'%';
+    document.getElementById('votePctB').textContent=pctB+'%';
+    document.getElementById('voteCount').textContent=(cntA+cntB)+'/'+total+' voted';
+    const myVote=votes[myId];
+    document.getElementById('voteOptA').classList.toggle('voted',myVote==='A');
+    document.getElementById('voteOptB').classList.toggle('voted',myVote==='B');
+    if(myVote){document.getElementById('voteOptA').onclick=null;document.getElementById('voteOptB').onclick=null;}
+  }
+  renderSidebarScores('voteSidebarScores',room.votePlayers||scores,{});
+  renderHostControls('voteHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="nextVoteRound()">'+t('nextRound')+' ▶</button>':'');
+  listenChat('vote');
+}
+
+window.launchVote=function(){
+  var q=document.getElementById('voteQ').value.trim();
+  var a=document.getElementById('voteA').value.trim()||'A';
+  var b=document.getElementById('voteB').value.trim()||'B';
+  if(!q)return;
+  db.ref('rooms/'+roomCode).update({voteQuestion:q,voteA:a,voteB:b,voteState:'voting',voteAnswers:{}});
+};
+
+window.castVote=async function(choice){
+  const snap=await db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).once('value');
+  if(snap.val())return;
+  db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).set(choice);
+};
+
+window.nextVoteRound=function(){
+  document.getElementById('voteQ').value='';
+  document.getElementById('voteA').value='';
+  document.getElementById('voteB').value='';
+  db.ref('rooms/'+roomCode).update({voteState:'host_input',voteQuestion:'',voteAnswers:{}});
+};
+
+// ============================================================
+// ===== WHO AM I =============================================
+// ============================================================
+const WHOAMI_WORDS={
+  en:['Einstein','Napoleon','Batman','Cleopatra','Elon Musk','Spider-Man','Shakespeare','Beyonce','Harry Potter','Gandhi','Mickey Mouse','Darth Vader','Queen Elizabeth','Sherlock Holmes','Mario','Wonder Woman'],
+  he:['איינשטיין','נפוליאון','באטמן','קליאופטרה','אלון מאסק','ספיידרמן','שייקספיר','גנדי','הרי פוטר','מיקי מאוס','דארת׳ ויידר','שרלוק הולמס','מריו','וונדר וומן'],
+};
+
+function initWhoami(){
+  const players=Object.keys(scores);
+  const words=(WHOAMI_WORDS[lang]||WHOAMI_WORDS.en).sort(()=>Math.random()-0.5);
+  const assignments={};
+  players.forEach((id,i)=>assignments[id]=words[i%words.length]);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,identity:assignments[id]});
+  db.ref('rooms/'+roomCode).update({status:'whoami',whoamiPlayers:ps,whoamiCurrent:players[0],chat:null});
+  systemMsg(t('whoami')+' started!');
+}
+
+function loadWhoami(room){
+  showScreen('whoami');
+  document.getElementById('whoamiCode').textContent=roomCode;
+  const players=room.whoamiPlayers||{};
+  const myData=players[myId]||{};
+  document.getElementById('whoamiIdentity').textContent=myData.identity||'?';
+  const currentId=room.whoamiCurrent;
+  const currentName=(scores[currentId]||{name:'?'}).name;
+  const isMyTurn=currentId===myId;
+  document.getElementById('whoamiCurrentPlayer').textContent=isMyTurn?'🎯 Your turn to ask!':currentName+' is asking...';
+  document.getElementById('whoamiGuesserArea').style.display=isMyTurn?'none':'block';
+  renderSidebarScores('whoamiSidebarScores',players,{});
+  renderHostControls('whoamiHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="nextWhoamiTurn()">'+t('nextRound')+' ▶</button>':'');
+  listenChat('whoami');
+}
+
+window.whoamiAnswer=function(yes){
+  const answer=yes?'✅ Yes!':'❌ No!';
+  systemMsg(answer);
+};
+
+window.nextWhoamiTurn=function(){
+  db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(s){
+    var players=Object.keys(s.val()||{});
+    var cur=players.indexOf(db.ref('rooms/'+roomCode+'/whoamiCurrent').toString());
+    var next=players[(cur+1)%players.length];
+    db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
+  });
+  db.ref('rooms/'+roomCode+'/whoamiCurrent').once('value').then(function(s){
+    var cur=s.val();
+    db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(sp){
+      var players=Object.keys(sp.val()||{});
+      var idx=players.indexOf(cur);
+      var next=players[(idx+1)%players.length];
+      db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
+    });
+  });
+};
+
+// ============================================================
+// ===== HOT POTATO (BOMB) ====================================
+// ============================================================
+var bombTimerInterval=null;
+
+function initBomb(){
+  const players=Object.keys(scores);
+  const duration=20+Math.floor(Math.random()*20); // 20-40 seconds
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,alive:true});
+  db.ref('rooms/'+roomCode).update({
+    status:'bomb',bombHolder:players[0],bombDuration:duration,
+    bombStart:Date.now(),bombRound:1,bombPlayers:ps,chat:null
+  });
+  systemMsg('💣 Hot Potato started!');
+}
+
+function loadBomb(room){
+  if(!room.bombHolder)return;
+  showScreen('bomb');
+  document.getElementById('bombCode').textContent=roomCode;
+  document.getElementById('bombRoundLbl').textContent=t('round')+' '+(room.bombRound||1);
+  const holderName=(scores[room.bombHolder]||{name:'?'}).name;
+  const isHolder=room.bombHolder===myId;
+  document.getElementById('bombHolder').textContent='🔥 '+holderName;
+  document.getElementById('bombStatus').textContent=isHolder?'YOU HAVE THE BOMB! Pass it!':'Watch out...';
+  document.getElementById('bombPassBtn').style.display=isHolder?'block':'none';
+  // Timer
+  clearInterval(bombTimerInterval);
+  const dur=room.bombDuration||30;
+  const start=room.bombStart||Date.now();
+  bombTimerInterval=setInterval(function(){
+    var elapsed=(Date.now()-start)/1000;
+    var rem=Math.max(0,dur-elapsed);
+    document.getElementById('bombTimerNum').textContent=Math.ceil(rem);
+    document.getElementById('bombTimerFill').style.width=(rem/dur*100)+'%';
+    if(rem<=0){
+      clearInterval(bombTimerInterval);
+      if(isHost) bombExplode(room);
+    }
+  },100);
+  renderSidebarScores('bombSidebarScores',room.bombPlayers||scores,{});
+  renderHostControls('bombHostControls','');
+  listenChat('bomb');
+}
+
+window.passBomb=async function(){
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const room=snap.val();
+  if(room.bombHolder!==myId)return;
+  const players=Object.keys(room.bombPlayers||{}).filter(id=>id!==myId&&(room.bombPlayers[id].alive!==false));
+  if(!players.length)return;
+  const next=players[Math.floor(Math.random()*players.length)];
+  const newDur=Math.max(10,(room.bombDuration||30)-2);
+  db.ref('rooms/'+roomCode).update({bombHolder:next,bombStart:Date.now(),bombDuration:newDur});
+};
+
+async function bombExplode(room){
+  const loser=room.bombHolder;
+  const loserName=(scores[loser]||{name:'?'}).name;
+  systemMsg('💥 '+loserName+' exploded!');
+  // Give points to survivors
+  const ps={...(room.bombPlayers||{})};
+  Object.keys(ps).forEach(id=>{if(id!==loser)ps[id].score=(ps[id].score||0)+100;});
+  ps[loser].alive=false;
+  // Check if only one left
+  const alive=Object.keys(ps).filter(id=>ps[id].alive!==false);
+  if(alive.length<=1){
+    const fs={};Object.entries(ps).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    const next=alive[Math.floor(Math.random()*alive.length)];
+    const newDur=Math.max(10,(room.bombDuration||30)-3);
+    await db.ref('rooms/'+roomCode).update({bombPlayers:ps,bombHolder:next,bombStart:Date.now(),bombDuration:newDur,bombRound:(room.bombRound||1)+1});
+  }
+}
+
+// ============================================================
+// ===== WOULD YOU RATHER =====================================
+// ============================================================
+var wyrTimerInterval=null;
+
+function initWyr(){
+  const qs=(WYR_Q[lang]||WYR_Q.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'wyr',wyrQuestions:qs,wyrIndex:0,
+    wyrAnswers:{},wyrStart:Date.now(),wyrPlayers:ps,chat:null
+  });
+  systemMsg(t('wyr')+' started!');
+}
+
+function loadWyr(room){
+  if(!room.wyrQuestions)return;
+  showScreen('wyr');
+  document.getElementById('wyrCode').textContent=roomCode;
+  const idx=room.wyrIndex||0;
+  const q=room.wyrQuestions[idx];
+  document.getElementById('wyrRound').textContent=t('round')+' '+(idx+1)+'/'+(room.wyrQuestions.length);
+  document.getElementById('wyrTextA').textContent=q.a;
+  document.getElementById('wyrTextB').textContent=q.b;
+  const votes=room.wyrAnswers||{};
+  const myVote=votes[myId];
+  document.getElementById('wyrOptA').classList.toggle('wyr-voted',myVote==='A');
+  document.getElementById('wyrOptB').classList.toggle('wyr-voted',myVote==='B');
+  const total=Object.keys(scores).length||1;
+  const voted=Object.keys(votes).length;
+  document.getElementById('wyrVoted').textContent=voted+'/'+total+' voted';
+  renderSidebarScores('wyrSidebarScores',room.wyrPlayers||scores,votes);
+  renderHostControls('wyrHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="advanceWyr()">'+t('nextRound')+' ▶</button>':'');
+  // Timer 15s
+  clearInterval(wyrTimerInterval);
+  const start=room.wyrStart||Date.now();
+  wyrTimerInterval=setInterval(function(){
+    var rem=Math.max(0,15-(Date.now()-start)/1000);
+    document.getElementById('wyrTimer').textContent=Math.ceil(rem);
+    document.getElementById('wyrTimerFill').style.width=(rem/15*100)+'%';
+    if(rem<=0){clearInterval(wyrTimerInterval);if(isHost)setTimeout(advanceWyr,1200);}
+  },100);
+  listenChat('wyr');
+}
+
+window.voteWyr=function(choice){
+  db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value').then(function(s){
+    if(s.val())return;
+    db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).set(choice);
+    // Give points
+    db.ref('rooms/'+roomCode+'/wyrPlayers/'+myId+'/score').transaction(function(s){return (s||0)+50;});
+  });
+};
+
+window.advanceWyr=async function(){
+  clearInterval(wyrTimerInterval);
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  const next=(r.wyrIndex||0)+1;
+  if(next>=(r.wyrQuestions||[]).length){
+    const fs={};Object.entries(r.wyrPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    await db.ref('rooms/'+roomCode).update({wyrIndex:next,wyrAnswers:{},wyrStart:Date.now()});
+  }
+};
+
+// ============================================================
+// ===== FASTEST FINGER =======================================
+// ============================================================
+var fastestTimerInterval=null;
+
+function initFastest(){
+  const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'fastest',fastestQuestions:qs,fastestIndex:0,
+    fastestBuzzed:null,fastestStart:Date.now(),fastestPlayers:ps,
+    fastestAnswered:{},chat:null
+  });
+  systemMsg('⚡ Fastest Finger started!');
+}
+
+function loadFastest(room){
+  if(!room.fastestQuestions)return;
+  showScreen('fastest');
+  document.getElementById('fastestCode').textContent=roomCode;
+  const idx=room.fastestIndex||0;
+  const q=room.fastestQuestions[idx];
+  document.getElementById('fastestQLbl').textContent='Q '+(idx+1)+'/'+(room.fastestQuestions.length);
+  document.getElementById('fastestQText').textContent=q.q;
+  const buzzed=room.fastestBuzzed;
+  const buzzedName=buzzed?(scores[buzzed]||{name:'?'}).name:null;
+  document.getElementById('fastestBuzzBtn').style.display=(!buzzed&&!room.fastestAnswered?.[myId])?'block':'none';
+  document.getElementById('fastestBuzzed').style.display=buzzed?'block':'none';
+  if(buzzed) document.getElementById('fastestBuzzed').textContent='⚡ '+buzzedName+'  — Answer: '+q.a;
+  document.getElementById('fastestStatus').textContent=Object.keys(room.fastestAnswered||{}).length+'/'+Object.keys(scores).length+' answered';
+  renderSidebarScores('fastestSidebarScores',room.fastestPlayers||scores,room.fastestAnswered||{});
+  renderHostControls('fastestHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="advanceFastest()">'+t('nextRound')+' ▶</button>':'');
+  clearInterval(fastestTimerInterval);
+  if(!buzzed){
+    const start=room.fastestStart||Date.now();
+    fastestTimerInterval=setInterval(function(){
+      var rem=Math.max(0,5-(Date.now()-start)/1000);
+      document.getElementById('fastestTimer').textContent=Math.ceil(rem);
+      document.getElementById('fastestTimerFill').style.width=(rem/5*100)+'%';
+      if(rem<=0){clearInterval(fastestTimerInterval);if(isHost)setTimeout(advanceFastest,1500);}
+    },100);
+  }
+  listenChat('fastest');
+}
+
+window.buzzIn=async function(){
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  if(r.fastestBuzzed)return;
+  const elapsed=(Date.now()-(r.fastestStart||Date.now()))/1000;
+  const pts=Math.max(100,500-Math.floor(elapsed*50));
+  await db.ref('rooms/'+roomCode+'/fastestBuzzed').set(myId);
+  await db.ref('rooms/'+roomCode+'/fastestPlayers/'+myId+'/score').transaction(s=>(s||0)+pts);
+  await db.ref('rooms/'+roomCode+'/fastestAnswered/'+myId).set(true);
+  clearInterval(fastestTimerInterval);
+  playSound('correct');
+};
+
+window.advanceFastest=async function(){
+  clearInterval(fastestTimerInterval);
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  const next=(r.fastestIndex||0)+1;
+  if(next>=(r.fastestQuestions||[]).length){
+    const fs={};Object.entries(r.fastestPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    await db.ref('rooms/'+roomCode).update({fastestIndex:next,fastestBuzzed:null,fastestAnswered:{},fastestStart:Date.now()});
+  }
+};
+
+// Simple games - Simon, Anagram, Complete, Number - use Trivia engine with different UI
+function initSimon(){initTrivia();} // Uses trivia with custom display
+function initAnagram(){initTrivia();}
+function initComplete(){initTrivia();}
+function initNumber(){initTrivia();}
+
+
 </script>
 
 <!-- FLOATING SETTINGS (visible on all screens) -->
