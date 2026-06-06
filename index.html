@@ -481,13 +481,23 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
             <button class="settings-opt" onclick="setSetting('timeQ',0,this)" id="txt-noLimit">∞</button>
           </div>
         </div>
-        <div class="settings-row" id="bombDurRow" style="display:none;">
-          <span class="settings-label" id="txt-bombDurLabel">⏱️ Duration</span>
-          <div class="settings-opts" id="settingsBombDur">
-            <button class="settings-opt" onclick="setSetting('bombDur',15,this)">15s</button>
-            <button class="settings-opt active" onclick="setSetting('bombDur',30,this)">30s</button>
-            <button class="settings-opt" onclick="setSetting('bombDur',45,this)">45s</button>
-            <button class="settings-opt" onclick="setSetting('bombDur',60,this)">60s</button>
+        <div id="bombDurRow" style="display:none;">
+          <div class="settings-row">
+            <span class="settings-label" id="txt-bombDurLabel">⏱️ Duration</span>
+            <div class="settings-opts" id="settingsBombDur">
+              <button class="settings-opt" onclick="setSetting('bombDur',15,this)">15s</button>
+              <button class="settings-opt active" onclick="setSetting('bombDur',30,this)">30s</button>
+              <button class="settings-opt" onclick="setSetting('bombDur',45,this)">45s</button>
+              <button class="settings-opt" onclick="setSetting('bombDur',60,this)">60s</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label" id="txt-bombDifficulty">⚡ Difficulty</span>
+            <div class="settings-opts" id="settingsBombDiff">
+              <button class="settings-opt active" onclick="setSetting('bombDiff','easy',this)" id="diff-easy">😊 Easy</button>
+              <button class="settings-opt" onclick="setSetting('bombDiff','medium',this)" id="diff-medium">😤 Medium</button>
+              <button class="settings-opt" onclick="setSetting('bombDiff','hard',this)" id="diff-hard">💀 Hard</button>
+            </div>
           </div>
         </div>
         <div class="settings-row">
@@ -789,6 +799,7 @@ const T = {
     noLimit:'No Limit',
     broadcast:'Message All',
     bombDurLabel:'Bomb Duration',
+    bombDifficulty:'Difficulty',diffEasy:'Easy',diffMedium:'Medium',diffHard:'Hard',
     vote:'Vote',
     voteAsk:'Ask a question:',
     wyrHostTitle:'CREATE A QUESTION',wyrCustom:'Custom',wyrPickQ:'Pick a question:',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
@@ -844,6 +855,7 @@ const T = {
     noLimit:'ללא הגבלה',
     broadcast:'הודעה לכולם',
     bombDurLabel:'זמן הפצצה',
+    bombDifficulty:'רמת קושי',diffEasy:'קל',diffMedium:'בינוני',diffHard:'קשה',
     vote:'הצבעה',
     voteAsk:'שאל שאלה:',
     wyrHostTitle:'צור שאלה',wyrCustom:'מותאם אישית',wyrPickQ:'בחר שאלה:',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
@@ -899,6 +911,7 @@ const T = {
     noLimit:'Без лимита',
     broadcast:'Сообщение всем',
     bombDurLabel:'Время бомбы',
+    bombDifficulty:'Сложность',diffEasy:'Легко',diffMedium:'Средне',diffHard:'Сложно',
     vote:'Голосование',
     voteAsk:'Задай вопрос:',
     wyrHostTitle:'СОЗДАТЬ ВОПРОС',wyrCustom:'Свой',wyrPickQ:'Выбери вопрос:',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
@@ -954,6 +967,7 @@ const T = {
     noLimit:'Sin limite',
     broadcast:'Mensaje a todos',
     bombDurLabel:'Duracion bomba',
+    bombDifficulty:'Dificultad',diffEasy:'Facil',diffMedium:'Medio',diffHard:'Dificil',
     vote:'Votacion',
     voteAsk:'Haz una pregunta:',
     wyrHostTitle:'CREAR PREGUNTA',wyrCustom:'Propio',wyrPickQ:'Elige pregunta:',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
@@ -1009,6 +1023,7 @@ const T = {
     noLimit:'بلا حد',
     broadcast:'رسالة للجميع',
     bombDurLabel:'مدة القنبلة',
+    bombDifficulty:'الصعوبة',diffEasy:'سهل',diffMedium:'متوسط',diffHard:'صعب',
     vote:'تصويت',
     voteAsk:'اسأل سؤالاً:',
     wyrHostTitle:'انشئ سؤالاً',wyrCustom:'مخصص',wyrPickQ:'اختر سؤالاً:',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
@@ -1371,7 +1386,7 @@ window.createRoom=async function(){
 };
 
 // ===== ROOM SETTINGS =====
-var roomSettings={numQ:10,timeQ:20,category:'all',bombDur:30};
+var roomSettings={numQ:10,timeQ:20,category:'all',bombDur:30,bombDiff:'easy'};
 
 window.setSetting=function(key,val,btn){
   roomSettings[key]=val;
@@ -1588,7 +1603,6 @@ function listenRoom(){
     }
     else if(room.status==='trivia')loadTrivia(room);
     else if(room.status==='forbidden')loadForbidden(room);
-    else if(room.status==='draw')loadDraw(room);
     else if(room.status==='whoami')loadWhoami(room);
     else if(room.status==='bomb')loadBomb(room);
     else if(room.status==='wyr')loadWyr(room);
@@ -2511,6 +2525,36 @@ function showResults(room){
   loadHistory();
 }
 
+function renderWyrSummary(history){
+  var sec=document.getElementById('wyrSummarySection');
+  var cont=document.getElementById('wyrSummaryContent');
+  if(!sec||!cont)return;
+  sec.style.display='block';
+  cont.innerHTML=history.map(function(h){
+    var pctA=h.total>0?Math.round(h.cntA/h.total*100):0;
+    var pctB=h.total>0?Math.round(h.cntB/h.total*100):0;
+    var winner=h.cntA>h.cntB?'A':h.cntA<h.cntB?'B':'tie';
+    return '<div style="background:var(--dark2);border-radius:10px;padding:12px;margin-bottom:8px;">'+
+      '<div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px;text-align:center;">'+h.q+'</div>'+
+      '<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;">'+
+        '<div style="background:var(--dark3);border-radius:8px;padding:8px;text-align:center;border:2px solid '+(winner==='A'?'var(--gold)':'var(--dark3)')+';">'+
+          '<div style="font-size:0.85rem;font-weight:700;">'+h.a+'</div>'+
+          '<div style="font-size:1.2rem;color:var(--gold);font-family:Cinzel,serif;">'+pctA+'%</div>'+
+          '<div style="font-size:0.75rem;color:var(--text-dim);">'+h.cntA+' votes</div>'+
+          '<div style="height:6px;background:var(--gold-dim);border-radius:3px;margin-top:4px;width:'+pctA+'%;"></div>'+
+        '</div>'+
+        '<div style="color:var(--gold-dim);font-weight:700;font-size:0.8rem;">VS</div>'+
+        '<div style="background:var(--dark3);border-radius:8px;padding:8px;text-align:center;border:2px solid '+(winner==='B'?'var(--gold)':'var(--dark3)')+';">'+
+          '<div style="font-size:0.85rem;font-weight:700;">'+h.b+'</div>'+
+          '<div style="font-size:1.2rem;color:var(--gold);font-family:Cinzel,serif;">'+pctB+'%</div>'+
+          '<div style="font-size:0.75rem;color:var(--text-dim);">'+h.cntB+' votes</div>'+
+          '<div style="height:6px;background:var(--gold-dim);border-radius:3px;margin-top:4px;width:'+pctB+'%;"></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
 function loadHistory(){
   db.ref('rooms/'+roomCode+'/history').once('value').then(function(snap){
     var el=document.getElementById('historySection');
@@ -2708,11 +2752,32 @@ window.launchWyr=function(){
 };
 
 window.endWyrSession=async function(){
-  // Show summary and end
   const snap=await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists())return;
   const room=snap.val();
+  // Save current vote to history if active
+  if(room.wyrState==='voting'&&room.wyrCurrent){
+    const votes=room.wyrAnswers||{};
+    const total=Math.max(1,Object.keys(room.players||{}).length);
+    const cntA=Object.values(votes).filter(v=>v==='A').length;
+    const cntB=Object.values(votes).filter(v=>v==='B').length;
+    await db.ref('rooms/'+roomCode+'/wyrHistory').push({
+      q:room.wyrCurrent.q,
+      a:room.wyrCurrent.a,
+      b:room.wyrCurrent.b,
+      cntA,cntB,total,ts:Date.now()
+    });
+  }
+  // Build final scores + show wyr summary status
   const fs={};Object.entries(room.wyrPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
-  db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  // Get full history
+  const histSnap=await db.ref('rooms/'+roomCode+'/wyrHistory').once('value');
+  const history=histSnap.exists()?Object.values(histSnap.val()):[];
+  await db.ref('rooms/'+roomCode).update({
+    status:'results',
+    finalScores:fs,
+    wyrSummary:history
+  });
 };
 
 window.voteWyr=function(choice){
@@ -2770,15 +2835,32 @@ function loadWhoami(room){
   const isMyTurn=currentId===myId;
   const cpEl=document.getElementById('whoamiCurrentPlayer');
   const ciEl=document.getElementById('whoamiCurrentIdentity');
-  if(cpEl) cpEl.textContent=isMyTurn?'🎯 Your turn — ask a YES/NO question!':currentName+' is guessing...';
-  if(ciEl) ciEl.textContent=isMyTurn?'(ask the others who you are!)':'Others see their identity: '+currentIdentity;
-  // Show/hide answer buttons
+  if(isMyTurn){
+    if(cpEl)cpEl.innerHTML='🎯 <strong>YOUR TURN!</strong> Ask the group a yes/no question about who you are!';
+    if(ciEl)ciEl.textContent='Your identity is hidden — can you guess?';
+  } else {
+    if(cpEl)cpEl.innerHTML='👤 <strong>'+currentName+'</strong> is asking questions right now';
+    if(ciEl)ciEl.style.color='var(--gold)';
+    if(ciEl)ciEl.textContent='Their identity: '+currentIdentity+' (shh!)';
+  }
+  // Show answer buttons only for non-current player
   const ansArea=document.getElementById('whoamiAnswerArea');
   if(ansArea) ansArea.style.display=isMyTurn?'none':'block';
+  // Show guess count
+  const guessCount=(room.whoamiGuesses||{})[currentId]||0;
+  const maxGuesses=5;
+  const gcEl=document.getElementById('whoamiGuessCount');
+  if(gcEl){gcEl.textContent='Attempts: '+guessCount+'/'+maxGuesses+(guessCount>=maxGuesses?' — Identity revealed!':'');}
+  if(guessCount>=maxGuesses){
+    // Reveal identity to all
+    const revDiv=document.getElementById('whoamiRevealAll');
+    if(revDiv){revDiv.style.display='block';revDiv.textContent='👁 '+currentName+' = '+currentIdentity;}
+  }
   // Score: the current player gets points per correct question, guesser gets 500 when they guess right
   renderSidebarScores('whoamiSidebarScores',players,{});
   renderHostControls('whoamiHostControls',
-    isHost?`<button class="host-ctrl-btn primary" onclick="nextWhoamiTurn()">${t('nextRound')} ▶</button>`:'');
+    isHost?`<button class="host-ctrl-btn primary" onclick="nextWhoamiTurn()">${t('nextRound')} ▶</button>
+    <button class="host-ctrl-btn" onclick="endWhoamiGame()" style="border-color:var(--green);color:var(--green);">🏁 End Game</button>`:'');
   listenChat('whoami');
 }
 
@@ -2791,26 +2873,31 @@ window.toggleIdentityReveal=function(){
 };
 
 window.whoamiAnswer=async function(answer){
+  if(!myId)return;
   const snap=await db.ref('rooms/'+roomCode).once('value');
   const room=snap.val();
   const currentId=room.whoamiCurrent;
   const currentName=(scores[currentId]||{name:'?'}).name;
+  const currentIdentity=(room.whoamiPlayers||{})[currentId]?.identity||'?';
   let ansText='';
-  let pts=0;
-  if(answer===true){ansText='✅ YES!';pts=10;}
+  if(answer===true){ansText='✅ YES!';}
   else if(answer===false){ansText='❌ NO!';}
   else if(answer==='maybe'){ansText='🤔 MAYBE...';}
   else if(answer==='guessed'){
-    ansText='🎉 '+currentName+' guessed correctly!';
-    pts=500;
-    // Give points to guesser
+    ansText='🎉 '+currentName+' guessed correctly! They are: '+currentIdentity;
     await db.ref('rooms/'+roomCode+'/whoamiPlayers/'+currentId+'/score').transaction(s=>(s||0)+500);
-    await db.ref('rooms/'+roomCode+'/players/'+currentId).update({score:500});
+    await db.ref('rooms/'+roomCode+'/players/'+currentId+'/score').transaction(s=>(s||0)+500);
     playSound('correct');
-    if(isHost) setTimeout(()=>nextWhoamiTurn(),2000);
+    if(isHost)setTimeout(()=>nextWhoamiTurn(),2500);
   }
-  if(pts>0&&answer===true){
-    await db.ref('rooms/'+roomCode+'/whoamiPlayers/'+currentId+'/score').transaction(s=>(s||0)+pts);
+  // Track guess count
+  if(answer!=='guessed'){
+    await db.ref('rooms/'+roomCode+'/whoamiGuesses/'+currentId).transaction(s=>(s||0)+1);
+    const newCount=((room.whoamiGuesses||{})[currentId]||0)+1;
+    if(newCount>=5){
+      ansText='⏰ 5 attempts! '+currentName+' = '+currentIdentity+'!';
+      if(isHost)setTimeout(()=>nextWhoamiTurn(),3000);
+    }
   }
   db.ref('rooms/'+roomCode+'/chat').push({system:true,text:ansText,ts:Date.now()});
 };
@@ -2823,14 +2910,29 @@ window.nextWhoamiTurn=function(){
     if(!players.length)return;
     var cur=room.whoamiCurrent||players[0];
     var idx=players.indexOf(cur);
-    var next=players[(idx+1)%players.length];
+    var nextIdx=(idx+1)%players.length;
+    var next=players[nextIdx];
+    // Reset guess count for new player
+    db.ref('rooms/'+roomCode+'/whoamiGuesses/'+next).set(0);
     db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
-    // Check if we've gone through all players (end game)
+    // End game only after everyone has had a turn AND we're back to start
     if(idx===players.length-1){
+      // One full round done - end game
       var fs={};
       Object.entries(room.whoamiPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
-      setTimeout(()=>db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs}),3000);
+      toast('🎉 Everyone had a turn! Showing results...','gold',3000);
+      setTimeout(function(){
+        db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+      },3000);
     }
+  });
+};
+
+window.endWhoamiGame=function(){
+  db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(s){
+    var fs={};
+    Object.entries(s.val()||{}).forEach(([id,p])=>fs[id]=p.score||0);
+    db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
   });
 };
 
@@ -2842,10 +2944,12 @@ var bombTimerInterval=null;
 function initBomb(){
   const players=Object.keys(scores);
   const duration=roomSettings.bombDur||30;
+  const diff=roomSettings.bombDiff||'easy';
   const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,alive:true});
   db.ref('rooms/'+roomCode).update({
     status:'bomb',bombHolder:players[0],bombDuration:duration,
-    bombStart:Date.now(),bombRound:1,bombPlayers:ps,chat:null,bombExploded:null
+    bombStart:Date.now(),bombRound:1,bombPlayers:ps,chat:null,bombExploded:null,
+    bombDiff:diff
   });
   systemMsg('💣 Hot Potato started!');
 }
@@ -2859,7 +2963,31 @@ function loadBomb(room){
   const isHolder=room.bombHolder===myId;
   document.getElementById('bombHolder').textContent='💣 '+holderName;
   document.getElementById('bombStatus').textContent=isHolder?'🔥 YOU HAVE THE BOMB!':'';
-  document.getElementById('bombPassBtn').style.display=isHolder?'block':'none';
+  // Difficulty affects button position
+  var diff2=room.bombDiff||'easy';
+  var passBtn=document.getElementById('bombPassBtn');
+  if(passBtn&&isHolder){
+    passBtn.style.display='block';
+    if(diff2==='easy'){
+      passBtn.style.position='relative';passBtn.style.left='';passBtn.style.top='';
+    } else if(diff2==='medium'){
+      // Button moves randomly within area
+      var rand1=(Math.random()*60-30);
+      passBtn.style.position='relative';passBtn.style.left=rand1+'px';
+    } else {
+      // Hard: button position changes every 3s
+      passBtn.style.position='relative';
+      if(!passBtn._moveInterval){
+        passBtn._moveInterval=setInterval(function(){
+          var rx=(Math.random()*120-60);var ry=(Math.random()*40-20);
+          passBtn.style.left=rx+'px';passBtn.style.top=ry+'px';
+        },2500);
+      }
+    }
+  } else if(passBtn){
+    passBtn.style.display='none';
+    if(passBtn._moveInterval){clearInterval(passBtn._moveInterval);passBtn._moveInterval=null;}
+  }
   // Alive list
   const aliveList=document.getElementById('bombAliveList');
   if(aliveList){
@@ -2905,7 +3033,7 @@ window.passBomb=async function(){
   const next=alivePlayers[Math.floor(Math.random()*alivePlayers.length)];
   // PRESERVE remaining time - calculate how much time is left and use that
   const elapsed=(Date.now()-(room.bombStart||Date.now()))/1000;
-  const remaining=Math.max(5,(room.bombDuration||30)-elapsed);
+  const remaining=Math.max(2,(room.bombDuration||30)-elapsed);
   playSound('wrong');
   // bombStart set to "now - 0" but duration = remaining, so timer continues from where it was
   db.ref('rooms/'+roomCode).update({
@@ -2937,7 +3065,7 @@ async function bombExplode(room){
     setTimeout(()=>db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs}),3000);
   } else {
     const next=alive[Math.floor(Math.random()*alive.length)];
-    const newDur=Math.max(8,(room.bombDuration||30)-3);
+    const newDur=Math.max(3,(room.bombDuration||30)-3);
     setTimeout(()=>db.ref('rooms/'+roomCode).update({
       bombPlayers:ps,bombHolder:next,bombStart:Date.now(),
       bombDuration:newDur,bombRound:(room.bombRound||1)+1,bombExploded:null
@@ -3065,6 +3193,8 @@ function initNumber(){initTrivia();}
       </div>
 
       <!-- ANSWER BUTTONS (for non-current player) -->
+      <div style="font-size:0.8rem;color:var(--text-dim);text-align:center;padding:6px;background:var(--dark3);border-radius:8px;margin-bottom:8px;" id="whoamiGuessCount"></div>
+      <div style="display:none;text-align:center;padding:10px;background:#1A1500;border:1px solid var(--gold);border-radius:10px;font-weight:700;color:var(--gold);margin-bottom:8px;" id="whoamiRevealAll"></div>
       <div id="whoamiAnswerArea">
         <div style="font-size:0.8rem;color:var(--text-dim);text-align:center;margin-bottom:8px;" id="txt-whoamiAnswerHint">Answer their question:</div>
         <div class="yn-btns">
