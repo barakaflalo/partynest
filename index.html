@@ -64,11 +64,11 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
 
 /* ===== CHAT ===== */
 .chat-box{background:var(--dark2);border:1px solid var(--dark3);border-radius:10px;overflow:hidden;}
-.chat-messages{padding:8px;height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;}
-.chat-msg{font-size:0.75rem;line-height:1.4;}
-.chat-msg .chat-name{font-weight:700;color:var(--gold);}
-.chat-msg.system{color:var(--text-dim);font-style:italic;}
-.chat-msg.correct-msg{color:var(--green);}
+.chat-messages{padding:8px;height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;background:#FFFFFF;}
+.chat-msg{font-size:0.75rem;line-height:1.4;color:#222;}
+.chat-msg .chat-name{font-weight:700;color:var(--gold-dim);}
+.chat-msg.system{color:#888;font-style:italic;}
+.chat-msg.correct-msg{color:#2E7A50;}
 .chat-input-row{display:flex;border-top:1px solid var(--dark3);}
 .chat-input{flex:1;background:none;border:none;color:var(--text);padding:7px 10px;font-family:'Heebo',sans-serif;font-size:0.82rem;outline:none;}
 .chat-send{background:var(--gold-dim);border:none;color:#0A0A0A;padding:7px 12px;cursor:pointer;font-size:0.8rem;font-weight:700;font-family:'Heebo',sans-serif;}
@@ -228,16 +228,14 @@ body.rtl .home-top-btns{right:auto;left:14px;}
 .podium-wrap{direction:ltr;}
 
 
-/* ===== FLOATING SETTINGS BAR ===== */
-.float-settings{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:500;}
-body.rtl .float-settings{right:auto;left:16px;}
-.float-settings-row{display:flex;gap:6px;align-items:center;background:var(--dark);border:1px solid var(--gold-dim);border-radius:20px;padding:5px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.4);}
-.float-lang-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;opacity:0.6;transition:all 0.15s;padding:2px 4px;border-radius:6px;}
-.float-lang-btn:hover,.float-lang-btn.active{opacity:1;background:var(--dark3);}
-.float-lang-btn.active{outline:2px solid var(--gold-dim);}
-.float-theme-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;border-radius:6px;color:var(--text-dim);}
-.float-theme-btn:hover{color:var(--gold);}
-.float-divider{width:1px;height:20px;background:var(--dark3);}
+/* ===== SETTINGS BAR (sticky below header) ===== */
+.float-settings{background:var(--dark);border-bottom:1px solid var(--dark3);padding:6px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:52px;z-index:49;flex-shrink:0;}
+.float-settings-row{display:flex;gap:5px;align-items:center;}
+.float-lang-btn{background:none;border:1px solid transparent;cursor:pointer;font-size:1rem;opacity:0.55;transition:all 0.15s;padding:2px 5px;border-radius:6px;}
+.float-lang-btn:hover,.float-lang-btn.active{opacity:1;border-color:var(--gold-dim);background:var(--dark3);}
+.float-theme-btn{background:none;border:1px solid var(--dark3);cursor:pointer;font-size:0.95rem;padding:3px 8px;border-radius:6px;color:var(--text-dim);}
+.float-theme-btn:hover{border-color:var(--gold-dim);color:var(--gold);}
+.float-divider{width:1px;height:18px;background:var(--dark3);margin:0 4px;}
 
 /* ===== COLOR THEMES ===== */
 body.theme-blue{--gold:#5B9BD5;--gold-dim:#3A6A9A;--gold-light:#7BB8F0;}
@@ -295,6 +293,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     <div class="header-logo">PartyNest</div>
     <button class="leave-header-btn" onclick="goTo('home')" data-i="back">← חזור</button>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="entry-wrap">
     <div class="entry-title" data-i="whatsYourName">מה השם שלך?</div>
     <div class="entry-sub" data-i="nameWillShow">השם יופיע ללוח הניקוד של כולם</div>
@@ -311,6 +311,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     <div class="header-logo">PartyNest</div>
     <button class="leave-header-btn" onclick="goTo('home')" data-i="back">← חזור</button>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="entry-wrap">
     <div class="entry-title" data-i="joinTitle">הצטרף למשחק</div>
     <input class="big-input" id="joinNameInput" maxlength="16" placeholder="השם שלך...">
@@ -331,6 +333,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
       <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
     </div>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="lobby-wrap">
     <div class="lobby-code-card">
       <div class="lobby-code-label" data-i="roomCode">קוד החדר</div>
@@ -373,6 +377,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
       <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
     </div>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="lobby-wrap">
     <div class="player-waiting">
       <div style="font-size:2rem;margin-bottom:8px;">⏳</div>
@@ -397,6 +403,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
       <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
     </div>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="game-layout">
     <div class="game-main">
       <div class="timer-section">
@@ -416,7 +424,7 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="chat-messages" id="triviaChatMsgs"></div>
         <div class="chat-input-row">
           <input class="chat-input" id="triviaChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('trivia')">
-          <button class="chat-send" onclick="sendChat('trivia')">שלח</button>
+          <button class="chat-send" onclick="sendChat('trivia')">➤</button>
         </div>
       </div>
     </div>
@@ -437,6 +445,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
       <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
     </div>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="game-layout">
     <div class="game-main">
       <div class="timer-section">
@@ -466,7 +476,7 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="chat-messages" id="forbiddenChatMsgs"></div>
         <div class="chat-input-row">
           <input class="chat-input" id="forbiddenChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('forbidden')">
-          <button class="chat-send" onclick="sendChat('forbidden')">שלח</button>
+          <button class="chat-send" onclick="sendChat('forbidden')">➤</button>
         </div>
       </div>
     </div>
@@ -487,6 +497,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
       <button class="leave-header-btn" onclick="confirmLeave()" data-i="leave">יציאה</button>
     </div>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="game-layout">
     <div class="game-main">
       <div class="timer-section">
@@ -525,7 +537,7 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="chat-messages" id="drawChatMsgs"></div>
         <div class="chat-input-row">
           <input class="chat-input" id="drawChatInput" placeholder="הודעה..." onkeydown="if(event.key==='Enter')sendChat('draw')">
-          <button class="chat-send" onclick="sendChat('draw')">שלח</button>
+          <button class="chat-send" onclick="sendChat('draw')">➤</button>
         </div>
       </div>
     </div>
@@ -543,6 +555,8 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     <div class="header-logo">🏆 <span data-i="results">תוצאות</span></div>
     <button class="leave-header-btn" onclick="leaveRoom()" data-i="leave">יציאה</button>
   </div>
+
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()" title="Guide">❓</button><button class="float-theme-btn" onclick="openAbout()" title="About">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
   <div class="results-wrap">
     <div class="results-title" data-i="gameOver">המשחק הסתיים!</div>
     <div class="podium-wrap" id="podiumWrap"></div>
@@ -765,9 +779,9 @@ window.setLang=function(l,btn){
   // Update home lang pills
   document.querySelectorAll('.lang-pill').forEach(function(b){b.classList.remove('active');});
   if(btn&&btn.classList.contains('lang-pill'))btn.classList.add('active');
-  // Update floating lang buttons
-  document.querySelectorAll('.float-lang-btn').forEach(function(b){
-    b.classList.toggle('active',b.dataset.lang===l);
+  // Update ALL lang buttons (home pills + all settings bars)
+  document.querySelectorAll('.float-lang-btn, .lang-pill').forEach(function(b){
+    b.classList.toggle('active', b.dataset.lang===l || (b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf("'"+l+"'")>=0));
   });
   var rtl=['he','ar'].includes(l);
   document.documentElement.lang=l;
@@ -782,8 +796,9 @@ window.setColorTheme=function(theme,dot){
   currentColorTheme=theme;
   document.body.classList.remove('theme-blue','theme-green','theme-purple','theme-red');
   if(theme!=='gold')document.body.classList.add('theme-'+theme);
-  document.querySelectorAll('.color-dot').forEach(function(d){d.classList.remove('active');});
-  if(dot)dot.classList.add('active');
+  document.querySelectorAll('.color-dot').forEach(function(d){
+    d.classList.toggle('active', d.dataset.theme===theme);
+  });
   localStorage.setItem('pn_color',theme);
 };
 
@@ -793,8 +808,7 @@ window.toggleTheme=function(){
   isDark=!isDark;
   document.body.classList.toggle('day',!isDark);
   var icon=isDark?'🌙':'☀️';
-  var btn=document.getElementById('themeBtn');if(btn)btn.textContent=icon;
-  var fbtn=document.getElementById('floatThemeBtn');if(fbtn)fbtn.textContent=icon;
+  document.querySelectorAll('.sbar-theme, #themeBtn, #floatThemeBtn').forEach(function(b){b.textContent=icon;});
   localStorage.setItem('pn_theme',isDark?'dark':'day');
 };
 
