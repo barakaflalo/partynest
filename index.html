@@ -2195,6 +2195,80 @@ async function advanceTrivia(room){
 // ===========================
 // ===== FORBIDDEN ==========
 // ===========================
+// ===== FORBIDDEN WORDS DATA =====
+const FW={
+  en:[
+    {word:'Computer',hints:['screen','keyboard','mouse','software']},
+    {word:'Ocean',hints:['waves','salt','swimming','fish']},
+    {word:'Cake',hints:['sweet','birthday','chocolate','flour']},
+    {word:'Football',hints:['player','goal','ball','field']},
+    {word:'House',hints:['roof','wall','door','window']},
+    {word:'Book',hints:['reading','page','author','library']},
+    {word:'Music',hints:['song','instrument','melody','rhythm']},
+    {word:'Lion',hints:['king','jungle','teeth','wild']},
+    {word:'Airplane',hints:['flight','sky','pilot','wings']},
+    {word:'Train',hints:['railway','station','wagon','travel']},
+    {word:'Pizza',hints:['cheese','tomato','oven','Italy']},
+    {word:'Dog',hints:['bark','tail','pet','paw']},
+    {word:'Sun',hints:['hot','yellow','light','star']},
+    {word:'School',hints:['teacher','lesson','student','class']},
+    {word:'Phone',hints:['call','screen','app','text']},
+  ],
+  he:[
+    {word:'מחשב',hints:['מסך','מקלדת','עכבר','תוכנה']},
+    {word:'ים',hints:['גלים','מלח','שחייה','דגים']},
+    {word:'עוגה',hints:['מתוק','יום הולדת','שוקולד','קמח']},
+    {word:'כדורגל',hints:['שחקן','שער','כדור','מגרש']},
+    {word:'בית',hints:['גג','קיר','דלת','חלון']},
+    {word:'ספר',hints:['קריאה','עמוד','כותב','ספרייה']},
+    {word:'מוסיקה',hints:['שיר','נגינה','מנגינה','קצב']},
+    {word:'אריה',hints:['מלך','ג׳ונגל','שיניים','פרא']},
+    {word:'מטוס',hints:['טיסה','שמיים','טייס','כנפיים']},
+    {word:'רכבת',hints:['מסילה','תחנה','קרון','נסיעה']},
+    {word:'פיצה',hints:['גבינה','עגבנייה','תנור','איטליה']},
+    {word:'כלב',hints:['נביחה','זנב','חיית מחמד','כפה']},
+    {word:'שמש',hints:['חם','צהוב','אור','כוכב']},
+    {word:'בית ספר',hints:['מורה','שיעור','תלמיד','כיתה']},
+    {word:'טלפון',hints:['שיחה','מסך','אפליקציה','הודעה']},
+  ],
+  ru:[
+    {word:'Компьютер',hints:['экран','клавиатура','мышь','программа']},
+    {word:'Океан',hints:['волны','соль','плавание','рыба']},
+    {word:'Торт',hints:['сладкий','день рождения','шоколад','мука']},
+    {word:'Футбол',hints:['игрок','гол','мяч','поле']},
+    {word:'Дом',hints:['крыша','стена','дверь','окно']},
+    {word:'Книга',hints:['чтение','страница','автор','библиотека']},
+    {word:'Музыка',hints:['песня','инструмент','мелодия','ритм']},
+    {word:'Лев',hints:['король','джунгли','зубы','дикий']},
+    {word:'Самолет',hints:['полет','небо','пилот','крылья']},
+    {word:'Поезд',hints:['рельсы','станция','вагон','путешествие']},
+  ],
+  es:[
+    {word:'Computadora',hints:['pantalla','teclado','raton','software']},
+    {word:'Oceano',hints:['olas','sal','natacion','peces']},
+    {word:'Pastel',hints:['dulce','cumpleanos','chocolate','harina']},
+    {word:'Futbol',hints:['jugador','gol','balon','campo']},
+    {word:'Casa',hints:['techo','pared','puerta','ventana']},
+    {word:'Libro',hints:['lectura','pagina','autor','biblioteca']},
+    {word:'Musica',hints:['cancion','instrumento','melodia','ritmo']},
+    {word:'Leon',hints:['rey','selva','dientes','salvaje']},
+    {word:'Avion',hints:['vuelo','cielo','piloto','alas']},
+    {word:'Tren',hints:['ferrocarril','estacion','vagon','viaje']},
+  ],
+  ar:[
+    {word:'حاسوب',hints:['شاشة','لوحة مفاتيح','فارة','برنامج']},
+    {word:'محيط',hints:['امواج','ملح','سباحة','سمك']},
+    {word:'كعكة',hints:['حلو','عيد ميلاد','شوكولاتة','دقيق']},
+    {word:'كرة القدم',hints:['لاعب','هدف','كرة','ملعب']},
+    {word:'بيت',hints:['سقف','جدار','باب','نافذة']},
+    {word:'كتاب',hints:['قراءة','صفحة','مؤلف','مكتبة']},
+    {word:'موسيقى',hints:['اغنية','آلة موسيقية','لحن','ايقاع']},
+    {word:'اسد',hints:['ملك','غابة','اسنان','بري']},
+    {word:'طائرة',hints:['طيران','سماء','طيار','اجنحة']},
+    {word:'قطار',hints:['سكة حديد','محطة','عربة','سفر']},
+  ]
+};
+
 var forbTimerStart=0;
 
 function initForbidden(){
@@ -2583,6 +2657,8 @@ function loadHistory(){
 window.backToLobby=async function(){
   _countdownShown=false;
   _summaryShown=-1;
+  // Save selectedGame before resetting
+  var savedGame=selectedGame;
   if(isHost){
     // Save game to history before resetting
     const snap=await db.ref('rooms/'+roomCode).once('value');
@@ -2601,7 +2677,8 @@ window.backToLobby=async function(){
     await db.ref('rooms/'+roomCode).update({
       status:'lobby',triviaAnswers:null,triviaIndex:0,
       drawCanvas:null,finalScores:null,chat:null,players:ps,
-      status_trivia:null,summaryIndex:null
+      status_trivia:null,summaryIndex:null,
+      game:savedGame
     });
   }
 };
@@ -2653,13 +2730,88 @@ const WYR_Q={
 var wyrMode='custom'; // 'custom' or 'wyr'
 var wyrTimerInterval=null;
 
+// WYR list storage
+var wyrMyQuestions=[];
+var whoamiMaxGuesses=5;
+var whoamiIdentityMode='preset';
+var whoamiCustomIdentities=[];
+
+window.setWhoamiMaxGuesses=function(n,btn){
+  whoamiMaxGuesses=n;
+  document.querySelectorAll('#whoamiGuessMax').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.settings-opt').forEach(b=>{
+    if(b.onclick&&b.onclick.toString().includes('setWhoamiMaxGuesses'))b.classList.remove('active');
+  });
+  if(btn)btn.classList.add('active');
+};
+
+window.setWhoamiIdentityMode=function(mode,btn){
+  whoamiIdentityMode=mode;
+  document.querySelectorAll('#whoamiIdentityType .settings-opt').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  var cl=document.getElementById('whoamiCustomList');
+  if(cl)cl.style.display=mode==='custom'?'block':'none';
+};
+
+window.addWhoamiIdentity=function(){
+  var inp=document.getElementById('whoamiCustomInput');
+  if(!inp||!inp.value.trim())return;
+  whoamiCustomIdentities.push(inp.value.trim());
+  inp.value='';
+  renderWhoamiCustomList();
+};
+
+function renderWhoamiCustomList(){
+  var el=document.getElementById('whoamiCustomListItems');
+  if(!el)return;
+  el.innerHTML=whoamiCustomIdentities.map((w,i)=>`<div style="display:flex;justify-content:space-between;padding:3px 0;">${w}<button onclick="whoamiCustomIdentities.splice(${i},1);renderWhoamiCustomList();" style="background:none;border:none;color:var(--red);cursor:pointer;">✕</button></div>`).join('');
+}
+
+window.wyrAddToList=function(){
+  var q=document.getElementById('wyrListQ').value.trim();
+  var a=document.getElementById('wyrListA').value.trim();
+  var b=document.getElementById('wyrListB').value.trim();
+  if(!a||!b)return;
+  wyrMyQuestions.push({q:q||'Would you rather...',a,b});
+  document.getElementById('wyrListQ').value='';
+  document.getElementById('wyrListA').value='';
+  document.getElementById('wyrListB').value='';
+  renderWyrMyList();
+};
+
+function renderWyrMyList(){
+  var el=document.getElementById('wyrMyList');
+  if(!el)return;
+  el.innerHTML=wyrMyQuestions.map((q,i)=>`
+    <div style="background:var(--dark3);border-radius:6px;padding:5px 8px;font-size:0.75rem;display:flex;justify-content:space-between;">
+      <span>${q.a} vs ${q.b}</span>
+      <button onclick="wyrMyQuestions.splice(${i},1);renderWyrMyList();" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.8rem;">✕</button>
+    </div>`).join('');
+}
+
+window.launchWyrList=async function(){
+  if(!wyrMyQuestions.length){toast('Add at least one question!','red');return;}
+  await db.ref('rooms/'+roomCode).update({
+    wyrState:'voting',
+    wyrCurrent:wyrMyQuestions[0],
+    wyrQueue:wyrMyQuestions.slice(1),
+    wyrAnswers:{},
+    wyrStart:Date.now()
+  });
+};
+
 window.wyrSetMode=function(mode,btn){
   wyrMode=mode;
-  document.querySelectorAll('#wyrModeCustom,#wyrModeWyr').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('#wyrModeCustom,#wyrModeWyr,#wyrModeList').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
   document.getElementById('wyrCustomArea').style.display=mode==='custom'?'block':'none';
   document.getElementById('wyrWyrArea').style.display=mode==='wyr'?'block':'none';
-  if(mode==='wyr') renderWyrList();
+  var listArea=document.getElementById('wyrListArea');
+  if(listArea)listArea.style.display=mode==='list'?'block':'none';
+  var launchBtn=document.getElementById('wyrLaunchBtn');
+  if(launchBtn)launchBtn.style.display=mode==='list'?'none':'block';
+  if(mode==='wyr')renderWyrList();
+  if(mode==='list')renderWyrMyList();
 };
 
 function renderWyrList(){
@@ -2789,17 +2941,37 @@ window.voteWyr=function(choice){
   });
 };
 
-window.nextWyrRound=function(){
+window.nextWyrRound=async function(){
   clearInterval(wyrTimerInterval);
-  // Save round to history first
-  db.ref('rooms/'+roomCode+'/wyrHistory').push({
-    q:document.getElementById('wyrQText')?document.getElementById('wyrQText').textContent:'',
-    ts:Date.now()
-  });
-  document.getElementById('wyrQInput').value='';
-  document.getElementById('wyrAInput').value='';
-  document.getElementById('wyrBInput').value='';
-  db.ref('rooms/'+roomCode).update({wyrState:'host_input',wyrCurrent:null,wyrAnswers:{}});
+  // Save current round to history
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const room=snap.val();
+  if(room&&room.wyrCurrent&&room.wyrState==='voting'){
+    const votes=room.wyrAnswers||{};
+    const total=Math.max(1,Object.keys(room.players||{}).length);
+    const cntA=Object.values(votes).filter(v=>v==='A').length;
+    const cntB=Object.values(votes).filter(v=>v==='B').length;
+    await db.ref('rooms/'+roomCode+'/wyrHistory').push({
+      q:room.wyrCurrent.q,a:room.wyrCurrent.a,b:room.wyrCurrent.b,
+      cntA,cntB,total,ts:Date.now()
+    });
+  }
+  // Check if there's a queue
+  const queue=(room&&room.wyrQueue)||[];
+  if(queue.length>0){
+    // Auto-advance to next question in queue
+    const next=queue[0];
+    const rest=queue.slice(1);
+    await db.ref('rooms/'+roomCode).update({
+      wyrState:'voting',wyrCurrent:next,wyrQueue:rest,
+      wyrAnswers:{},wyrStart:Date.now()
+    });
+  } else {
+    document.getElementById('wyrQInput').value='';
+    document.getElementById('wyrAInput').value='';
+    document.getElementById('wyrBInput').value='';
+    db.ref('rooms/'+roomCode).update({wyrState:'host_input',wyrCurrent:null,wyrAnswers:{},wyrQueue:null});
+  }
 };
 
 // ============================================================
@@ -2812,16 +2984,26 @@ const WHOAMI_WORDS={
 
 function initWhoami(){
   const players=Object.keys(scores);
-  const words=(WHOAMI_WORDS[lang]||WHOAMI_WORDS.en).sort(()=>Math.random()-0.5);
+  // Use custom identities if set, otherwise use preset
+  const wordList=(whoamiIdentityMode==='custom'&&whoamiCustomIdentities.length>=players.length)
+    ? whoamiCustomIdentities
+    : (WHOAMI_WORDS[lang]||WHOAMI_WORDS.en);
+  const words=[...wordList].sort(()=>Math.random()-0.5);
   const assignments={};
   players.forEach((id,i)=>assignments[id]=words[i%words.length]);
   const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,identity:assignments[id]});
-  db.ref('rooms/'+roomCode).update({status:'whoami',whoamiPlayers:ps,whoamiCurrent:players[0],chat:null});
+  db.ref('rooms/'+roomCode).update({
+    status:'whoami',whoamiPlayers:ps,whoamiCurrent:players[0],
+    whoamiMaxGuesses:whoamiMaxGuesses,whoamiGuesses:{},chat:null
+  });
   systemMsg('🃏 '+t('whoami')+' started!');
 }
 
 function loadWhoami(room){
   showScreen('whoami');
+  // Show setup area for host
+  var setup=document.getElementById('whoamiSetupArea');
+  if(setup)setup.style.display='none'; // Only show in pre-game setup
   document.getElementById('whoamiCode').textContent=roomCode;
   const players=room.whoamiPlayers||{};
   const myData=players[myId]||{};
@@ -2848,7 +3030,7 @@ function loadWhoami(room){
   if(ansArea) ansArea.style.display=isMyTurn?'none':'block';
   // Show guess count
   const guessCount=(room.whoamiGuesses||{})[currentId]||0;
-  const maxGuesses=5;
+  const maxGuesses=room.whoamiMaxGuesses||5;
   const gcEl=document.getElementById('whoamiGuessCount');
   if(gcEl){gcEl.textContent='Attempts: '+guessCount+'/'+maxGuesses+(guessCount>=maxGuesses?' — Identity revealed!':'');}
   if(guessCount>=maxGuesses){
@@ -2963,26 +3145,37 @@ function loadBomb(room){
   const isHolder=room.bombHolder===myId;
   document.getElementById('bombHolder').textContent='💣 '+holderName;
   document.getElementById('bombStatus').textContent=isHolder?'🔥 YOU HAVE THE BOMB!':'';
-  // Difficulty affects button position
   var diff2=room.bombDiff||'easy';
   var passBtn=document.getElementById('bombPassBtn');
   if(passBtn&&isHolder){
     passBtn.style.display='block';
+    // Clear old interval
+    if(passBtn._moveInterval){clearInterval(passBtn._moveInterval);passBtn._moveInterval=null;}
     if(diff2==='easy'){
-      passBtn.style.position='relative';passBtn.style.left='';passBtn.style.top='';
+      // Easy: big button, fixed position
+      passBtn.style.fontSize='1.1rem';passBtn.style.padding='16px';
+      passBtn.style.position='relative';passBtn.style.left='0';passBtn.style.top='0';
+      passBtn.style.width='100%';passBtn.style.opacity='1';
     } else if(diff2==='medium'){
-      // Button moves randomly within area
-      var rand1=(Math.random()*60-30);
-      passBtn.style.position='relative';passBtn.style.left=rand1+'px';
-    } else {
-      // Hard: button position changes every 3s
+      // Medium: medium button, changes position every pass
+      passBtn.style.fontSize='0.9rem';passBtn.style.padding='10px';
+      passBtn.style.width='60%';
       passBtn.style.position='relative';
-      if(!passBtn._moveInterval){
-        passBtn._moveInterval=setInterval(function(){
-          var rx=(Math.random()*120-60);var ry=(Math.random()*40-20);
-          passBtn.style.left=rx+'px';passBtn.style.top=ry+'px';
-        },2500);
-      }
+      var rx2=(Math.random()*40-20);
+      passBtn.style.left=rx2+'px';passBtn.style.top='0';
+      passBtn.style.opacity='0.9';
+    } else {
+      // Hard: small button, moves constantly
+      passBtn.style.fontSize='0.75rem';passBtn.style.padding='6px 10px';
+      passBtn.style.width='35%';passBtn.style.opacity='0.8';
+      passBtn.style.position='relative';
+      passBtn._moveInterval=setInterval(function(){
+        var rx3=(Math.random()*160-80);var ry3=(Math.random()*60-30);
+        passBtn.style.left=rx3+'px';passBtn.style.top=ry3+'px';
+        // Get smaller each press
+        var currentW=parseInt(passBtn.style.width)||35;
+        passBtn.style.width=Math.max(15,currentW-1)+'%';
+      },1800);
     }
   } else if(passBtn){
     passBtn.style.display='none';
@@ -3175,6 +3368,31 @@ function initNumber(){initTrivia();}
   </div></div>
   <div class="game-layout">
     <div class="game-main">
+      <!-- HOST: choose identities mode -->
+      <div id="whoamiSetupArea" style="display:none;">
+        <div class="vote-input-area" style="margin-bottom:10px;">
+          <div style="font-size:0.75rem;color:var(--gold);font-weight:700;margin-bottom:8px;">🃏 GAME SETTINGS</div>
+          <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Max guesses before reveal:</div>
+          <div class="settings-opts" style="margin-bottom:10px;">
+            <button class="settings-opt" onclick="setWhoamiMaxGuesses(3,this)">3</button>
+            <button class="settings-opt active" onclick="setWhoamiMaxGuesses(5,this)" id="whoamiGuessMax">5</button>
+            <button class="settings-opt" onclick="setWhoamiMaxGuesses(8,this)">8</button>
+            <button class="settings-opt" onclick="setWhoamiMaxGuesses(99,this)">∞</button>
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Identity list:</div>
+          <div id="whoamiIdentityType" style="display:flex;gap:6px;margin-bottom:8px;">
+            <button class="settings-opt active" onclick="setWhoamiIdentityMode('preset',this)">🎭 Preset</button>
+            <button class="settings-opt" onclick="setWhoamiIdentityMode('custom',this)">✏️ Custom</button>
+          </div>
+          <div id="whoamiCustomList" style="display:none;">
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input class="big-input" id="whoamiCustomInput" style="font-size:0.78rem;" placeholder="Add identity (e.g. Batman)">
+              <button class="settings-opt" onclick="addWhoamiIdentity()" style="flex-shrink:0;">➕</button>
+            </div>
+            <div id="whoamiCustomListItems" style="max-height:100px;overflow-y:auto;font-size:0.78rem;color:var(--text-dim);"></div>
+          </div>
+        </div>
+      </div>
       <!-- MY IDENTITY (blurred, don't look!) -->
       <div class="whoami-card" style="margin-bottom:12px;">
         <div style="font-size:0.72rem;color:var(--text-dim);letter-spacing:2px;margin-bottom:6px;" id="txt-whoamiMyCard">YOUR IDENTITY (don't look!)</div>
@@ -3301,10 +3519,13 @@ function initNumber(){initTrivia();}
       <div id="wyrHostInput" style="display:none;">
         <div class="vote-input-area">
           <div style="font-size:0.75rem;color:var(--gold);font-weight:700;letter-spacing:1px;margin-bottom:10px;" id="txt-wyrHostTitle">🔮 CREATE A QUESTION</div>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <button class="settings-opt active" onclick="wyrSetMode('custom',this)" id="wyrModeCustom" style="flex:1;padding:8px;">✏️ <span id="txt-wyrCustom">Custom</span></button>
-            <button class="settings-opt" onclick="wyrSetMode('wyr',this)" id="wyrModeWyr" style="flex:1;padding:8px;">🔮 Would You Rather</button>
+          <!-- Mode tabs -->
+          <div style="display:flex;gap:6px;margin-bottom:10px;">
+            <button class="settings-opt active" onclick="wyrSetMode('custom',this)" id="wyrModeCustom" style="flex:1;padding:7px;font-size:0.78rem;">✏️ Custom</button>
+            <button class="settings-opt" onclick="wyrSetMode('wyr',this)" id="wyrModeWyr" style="flex:1;padding:7px;font-size:0.78rem;">🔮 Would You Rather</button>
+            <button class="settings-opt" onclick="wyrSetMode('list',this)" id="wyrModeList" style="flex:1;padding:7px;font-size:0.78rem;">📋 My List</button>
           </div>
+          <!-- Custom mode -->
           <div id="wyrCustomArea">
             <input class="big-input" id="wyrQInput" style="margin-bottom:8px;" placeholder="Question...">
             <div style="display:flex;gap:8px;">
@@ -3312,11 +3533,26 @@ function initNumber(){initTrivia();}
               <input class="big-input" id="wyrBInput" placeholder="Option B">
             </div>
           </div>
+          <!-- WYR presets -->
           <div id="wyrWyrArea" style="display:none;">
-            <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px;" id="txt-wyrPickQ">Pick a question or use random:</div>
-            <div id="wyrWyrList" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+            <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:8px;" id="txt-wyrPickQ">Pick a question:</div>
+            <div id="wyrWyrList" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
           </div>
-          <button class="lobby-start" style="margin-top:12px;width:100%;" onclick="launchWyr()" id="txt-wyrLaunch">🚀 Launch!</button>
+          <!-- My list mode -->
+          <div id="wyrListArea" style="display:none;">
+            <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Add questions to your list, then auto-advance through all:</div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input class="big-input" id="wyrListQ" style="font-size:0.78rem;" placeholder="Question...">
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:6px;">
+              <input class="big-input" id="wyrListA" style="font-size:0.78rem;" placeholder="Option A">
+              <input class="big-input" id="wyrListB" style="font-size:0.78rem;" placeholder="Option B">
+            </div>
+            <button class="settings-opt" onclick="wyrAddToList()" style="width:100%;padding:7px;margin-bottom:8px;">➕ Add to list</button>
+            <div id="wyrMyList" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px;"></div>
+            <button class="lobby-start" style="width:100%;" onclick="launchWyrList()">▶ Start with all questions</button>
+          </div>
+          <button class="lobby-start" style="margin-top:12px;width:100%;" id="wyrLaunchBtn" onclick="launchWyr()">🚀 Launch!</button>
         </div>
       </div>
       <!-- VOTING MODE -->
