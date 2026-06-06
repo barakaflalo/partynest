@@ -276,6 +276,17 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
 .history-label{color:var(--text-dim);}
 .history-val{color:var(--gold);font-weight:700;}
 
+
+/* ===== ROOM SETTINGS PANEL ===== */
+.room-settings{background:var(--dark2);border:1px solid var(--dark3);border-radius:12px;padding:12px;}
+.settings-title{font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:10px;}
+.settings-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+.settings-label{font-size:0.82rem;color:var(--text-dim);flex-shrink:0;}
+.settings-opts{display:flex;gap:5px;flex-wrap:wrap;}
+.settings-opt{background:var(--dark3);border:1px solid #444;color:var(--text-dim);padding:4px 10px;border-radius:8px;cursor:pointer;font-size:0.8rem;font-family:'Heebo',sans-serif;transition:all 0.15s;}
+.settings-opt.active{background:var(--gold-dim);border-color:var(--gold);color:#0A0A0A;font-weight:700;}
+.settings-opt:hover:not(.active){border-color:var(--gold-dim);color:var(--text);}
+
 </style>
 </head>
 <body>
@@ -392,9 +403,31 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="game-opt" onclick="selectGame('draw')" id="go-draw"><span class="game-opt-icon">🎨</span><span class="game-opt-name" data-i="draw">ציור</span></div>
       </div>
     </div>
+    <!-- ROOM SETTINGS -->
+    <div class="room-settings" id="roomSettingsPanel">
+      <div class="settings-title" id="txt-settingsTitle">⚙️ ROOM SETTINGS</div>
+      <div class="settings-row">
+        <span class="settings-label" id="txt-numQuestions">Questions</span>
+        <div class="settings-opts" id="settingsNumQ">
+          <button class="settings-opt" onclick="setSetting('numQ',5,this)">5</button>
+          <button class="settings-opt active" onclick="setSetting('numQ',10,this)">10</button>
+          <button class="settings-opt" onclick="setSetting('numQ',15,this)">15</button>
+          <button class="settings-opt" onclick="setSetting('numQ',20,this)">20</button>
+        </div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label" id="txt-timePerQ">Time / Q</span>
+        <div class="settings-opts" id="settingsTime">
+          <button class="settings-opt" onclick="setSetting('timeQ',10,this)">10s</button>
+          <button class="settings-opt active" onclick="setSetting('timeQ',20,this)">20s</button>
+          <button class="settings-opt" onclick="setSetting('timeQ',30,this)">30s</button>
+          <button class="settings-opt" onclick="setSetting('timeQ',60,this)">60s</button>
+        </div>
+      </div>
+    </div>
     <div class="lobby-btns">
-      <button class="lobby-start" onclick="startGame()" data-i="startGame">התחל משחק ▶</button>
-      <button class="lobby-leave" onclick="leaveRoom()" data-i="leave">יציאה</button>
+      <button class="lobby-start" onclick="startGame()" id="txt-startGame">Start Game ▶</button>
+      <button class="lobby-leave" onclick="leaveRoom()" id="txt-leave-lh2">Leave</button>
     </div>
   </div>
 </div>
@@ -652,6 +685,9 @@ const T = {
     triviaStarted:'🧠 Trivia started!',forbiddenStarted:'🚫 Forbidden Word started!',drawStarted:'🎨 Drawing started!',
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
     history:'Game History',
+    settingsTitle:'⚙️ Room Settings',
+    numQuestions:'Questions',
+    timePerQ:'Time / Question',
     guideTitle:'How to Play',
     guideStep1Title:'Create or Join a Room',guideStep1Desc:'The host creates a room and gets a 4-digit code. Players join by entering the code or scanning the QR.',
     guideStep2Title:'Choose a Game',guideStep2Desc:'The host picks one of 3 games: Trivia, Forbidden Word, or Drawing.',
@@ -688,6 +724,9 @@ const T = {
     triviaStarted:'🧠 טריוויה התחילה!',forbiddenStarted:'🚫 מילה אסורה התחילה!',drawStarted:'🎨 ציור התחיל!',
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
     history:'היסטוריית משחקים',
+    settingsTitle:'⚙️ הגדרות חדר',
+    numQuestions:'כמות שאלות',
+    timePerQ:'זמן לשאלה',
     guideTitle:'איך משחקים',
     guideStep1Title:'צור או הצטרף לחדר',guideStep1Desc:'המארח פותח חדר ומקבל קוד 4 ספרות. שחקנים מצטרפים עם הקוד או בסריקת QR.',
     guideStep2Title:'בחר משחק',guideStep2Desc:'המארח בוחר אחד מ-3 משחקים: טריוויה, מילה אסורה, או ציור.',
@@ -724,6 +763,9 @@ const T = {
     triviaStarted:'🧠 Викторина началась!',forbiddenStarted:'🚫 Запретное слово началось!',drawStarted:'🎨 Рисование началось!',
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
     history:'История игр',
+    settingsTitle:'⚙️ Настройки',
+    numQuestions:'Вопросов',
+    timePerQ:'Время / вопрос',
     guideTitle:'Как играть',
     guideStep1Title:'Создай или войди в комнату',guideStep1Desc:'Хост создаёт комнату и получает 4-значный код. Игроки входят по коду или QR.',
     guideStep2Title:'Выбери игру',guideStep2Desc:'Хост выбирает одну из 3 игр: Викторина, Запретное слово или Рисование.',
@@ -760,6 +802,9 @@ const T = {
     triviaStarted:'🧠 Trivia comenzo!',forbiddenStarted:'🚫 Palabra Prohibida comenzo!',drawStarted:'🎨 Dibujo comenzo!',
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
     history:'Historial',
+    settingsTitle:'⚙️ Configuracion',
+    numQuestions:'Preguntas',
+    timePerQ:'Tiempo / pregunta',
     guideTitle:'Como jugar',
     guideStep1Title:'Crea o unete a una sala',guideStep1Desc:'El anfitrion crea una sala y obtiene un codigo de 4 digitos. Los jugadores se unen con el codigo o QR.',
     guideStep2Title:'Elige un juego',guideStep2Desc:'El anfitrion elige uno de 3 juegos: Trivia, Palabra Prohibida o Dibujo.',
@@ -796,6 +841,9 @@ const T = {
     triviaStarted:'بدات التريفيا!',forbiddenStarted:'بدات الكلمة المحظورة!',drawStarted:'بدا الرسم!',
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
     history:'سجل الألعاب',
+    settingsTitle:'⚙️ اعدادات',
+    numQuestions:'عدد الاسئلة',
+    timePerQ:'وقت السؤال',
     guideTitle:'كيف تلعب',
     guideStep1Title:'انشئ غرفة او انضم اليها',guideStep1Desc:'المضيف ينشئ غرفة ويحصل على كود من 4 ارقام. اللاعبون ينضمون بالكود او QR.',
     guideStep2Title:'اختر لعبة',guideStep2Desc:'المضيف يختار واحدة من 3 العاب: تريفيا، كلمة محظورة، او رسم.',
@@ -995,6 +1043,10 @@ function applyT(){
   _ph('forbiddenGuessInp',L.guessWord);
   _ph('drawGuessInp',L.guessDraw);
 
+  // Settings labels
+  _st('txt-settingsTitle','settingsTitle');
+  _st('txt-numQuestions','numQuestions');
+  _st('txt-timePerQ','timePerQ');
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
   var btnSh=document.getElementById('btn-sh');
@@ -1080,7 +1132,7 @@ window.createRoom=async function(){
   var roomDbRef = db.ref('rooms/'+roomCode);
   // Don't delete room on disconnect - host can rejoin
   await roomDbRef.set({
-    host:myId,game:'trivia',status:'lobby',lang:lang,
+    host:myId,game:'trivia',status:'lobby',lang:lang,settings_numQ:10,settings_timeQ:20,
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
   });
@@ -1090,11 +1142,29 @@ window.createRoom=async function(){
   }catch(e){document.getElementById('createErr').textContent='שגיאה: '+e.message;console.error(e);}
 };
 
+// ===== ROOM SETTINGS =====
+var roomSettings={numQ:10,timeQ:20};
+
+window.setSetting=function(key,val,btn){
+  roomSettings[key]=val;
+  var container=btn.parentElement;
+  container.querySelectorAll('.settings-opt').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  // Save to Firebase
+  if(isHost&&roomCode){
+    var update={};update['settings_'+key]=val;
+    db.ref('rooms/'+roomCode).update(update);
+  }
+};
+
 window.selectGame=function(g){
   selectedGame=g;
   document.querySelectorAll('.game-opt').forEach(el=>el.classList.remove('active'));
   document.getElementById('go-'+g).classList.add('active');
   db.ref('rooms/'+roomCode).update({game:g});
+  // Show/hide settings panel (only relevant for trivia)
+  var sp=document.getElementById('roomSettingsPanel');
+  if(sp)sp.style.display=(g==='trivia'?'':'none');
 };
 
 window.shareVia=function(platform){
@@ -1238,6 +1308,9 @@ function listenRoom(){
     const room=snap.val();
     scores=room.players||{};
     selectedGame=room.game||'trivia';
+    // Sync room settings for all players
+    if(room.settings_numQ) roomSettings.numQ=room.settings_numQ;
+    if(room.settings_timeQ) roomSettings.timeQ=room.settings_timeQ;
 
     // Check kicked
     if(!isHost&&!scores[myId]){toast(t('kicked'),'red');goTo('home');return;}
@@ -1489,12 +1562,12 @@ const TQ_EXTRA={
 let triviaTimerStart=0,triviaAnswered={};
 
 function initTrivia(){
-  const baseQ=TQ[lang]||TQ.en;const extraQ=TQ_EXTRA&&TQ_EXTRA[lang]?TQ_EXTRA[lang]:[];const allQ=[...baseQ,...extraQ];const qs=allQ.sort(()=>Math.random()-0.5).slice(0,10);
+  const baseQ=TQ[lang]||TQ.en;const extraQ=TQ_EXTRA&&TQ_EXTRA[lang]?TQ_EXTRA[lang]:[];const allQ=[...baseQ,...extraQ];const numQ=roomSettings.numQ||10;const qs=allQ.sort(()=>Math.random()-0.5).slice(0,Math.min(numQ,allQ.length));
   const initSc={};Object.keys(scores).forEach(id=>initSc[id]=0);
   const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
   db.ref('rooms/'+roomCode).update({
     status:'trivia',triviaQuestions:qs,triviaIndex:0,
-    triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),
+    triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),triviaTimeQ:roomSettings.timeQ||20,
     players,chat:null
   });
   systemMsg(t('triviaStarted'));
@@ -1602,7 +1675,7 @@ function loadTrivia(room){
 
   // Timer
   clearInterval(gameTimerInterval);
-  const dur=20;
+  const dur=room.triviaTimeQ||roomSettings.timeQ||20;
   triviaTimerStart=room.triviaStart||Date.now();
   gameTimerInterval=setInterval(()=>{
     const elapsed=(Date.now()-triviaTimerStart)/1000;
@@ -1631,7 +1704,8 @@ window.submitTrivia=async function(answer){
   const q=room.triviaQuestions[room.triviaIndex||0];
   const ok=answer===q.a;
   const elapsed=Math.floor((Date.now()-(room.triviaStart||Date.now()))/1000);
-  const pts=ok?Math.max(50,100+(20-elapsed)*5):0;
+  const timeQ=room.triviaTimeQ||20;
+  const pts=ok?Math.max(50,100+(timeQ-elapsed)*5):0;
   if(ok)playSound('correct');else playSound('wrong');
   // Save answer
   await db.ref('rooms/'+roomCode+'/triviaAnswers').update({[myId]:answer});
