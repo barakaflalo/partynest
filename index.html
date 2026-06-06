@@ -287,6 +287,14 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
 .settings-opt.active{background:var(--gold-dim);border-color:var(--gold);color:#0A0A0A;font-weight:700;}
 .settings-opt:hover:not(.active){border-color:var(--gold-dim);color:var(--text);}
 
+
+.category-opts{display:flex;gap:5px;flex-wrap:wrap;}
+
+
+.sidebar-mute{background:#555;border:none;color:#FFF;width:18px;height:18px;border-radius:4px;cursor:pointer;font-size:0.55rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sidebar-mute.muted{background:var(--gold-dim);}
+.muted-badge{font-size:0.65rem;color:var(--gold-dim);margin-left:3px;}
+
 </style>
 </head>
 <body>
@@ -421,6 +429,17 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
             <button class="settings-opt active" onclick="setSetting('timeQ',20,this)">20s</button>
             <button class="settings-opt" onclick="setSetting('timeQ',30,this)">30s</button>
             <button class="settings-opt" onclick="setSetting('timeQ',60,this)">60s</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label" id="txt-categoryLabel">Category</span>
+          <div class="settings-opts" id="settingsCategory">
+            <button class="settings-opt active" onclick="setSetting('category','all',this)" id="cat-all">🌍 All</button>
+            <button class="settings-opt" onclick="setSetting('category','science',this)" id="cat-science">🔬</button>
+            <button class="settings-opt" onclick="setSetting('category','sports',this)" id="cat-sports">⚽</button>
+            <button class="settings-opt" onclick="setSetting('category','history',this)" id="cat-history">📜</button>
+            <button class="settings-opt" onclick="setSetting('category','geo',this)" id="cat-geo">🗺️</button>
+            <button class="settings-opt" onclick="setSetting('category','kids',this)" id="cat-kids">🧒</button>
           </div>
         </div>
       </div>
@@ -685,7 +704,15 @@ const T = {
     triviaStarted:'🧠 Trivia started!',forbiddenStarted:'🚫 Forbidden Word started!',drawStarted:'🎨 Drawing started!',
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
     history:'Game History',
+    muted:'You are muted',
     settingsTitle:'⚙️ Room Settings',
+    category:'Category',
+    catAll:'All',
+    catScience:'Science',
+    catSports:'Sports',
+    catHistory:'History',
+    catGeo:'Geography',
+    catKids:'Kids',
     numQuestions:'Questions',
     timePerQ:'Time / Question',
     guideTitle:'How to Play',
@@ -724,7 +751,15 @@ const T = {
     triviaStarted:'🧠 טריוויה התחילה!',forbiddenStarted:'🚫 מילה אסורה התחילה!',drawStarted:'🎨 ציור התחיל!',
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
     history:'היסטוריית משחקים',
+    muted:'אתה מושתק',
     settingsTitle:'⚙️ הגדרות חדר',
+    category:'קטגוריה',
+    catAll:'הכל',
+    catScience:'מדע',
+    catSports:'ספורט',
+    catHistory:'היסטוריה',
+    catGeo:'גאוגרפיה',
+    catKids:'ילדים',
     numQuestions:'כמות שאלות',
     timePerQ:'זמן לשאלה',
     guideTitle:'איך משחקים',
@@ -763,7 +798,15 @@ const T = {
     triviaStarted:'🧠 Викторина началась!',forbiddenStarted:'🚫 Запретное слово началось!',drawStarted:'🎨 Рисование началось!',
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
     history:'История игр',
+    muted:'Вы в муте',
     settingsTitle:'⚙️ Настройки',
+    category:'Категория',
+    catAll:'Все',
+    catScience:'Наука',
+    catSports:'Спорт',
+    catHistory:'История',
+    catGeo:'География',
+    catKids:'Дети',
     numQuestions:'Вопросов',
     timePerQ:'Время / вопрос',
     guideTitle:'Как играть',
@@ -802,7 +845,15 @@ const T = {
     triviaStarted:'🧠 Trivia comenzo!',forbiddenStarted:'🚫 Palabra Prohibida comenzo!',drawStarted:'🎨 Dibujo comenzo!',
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
     history:'Historial',
+    muted:'Estas silenciado',
     settingsTitle:'⚙️ Configuracion',
+    category:'Categoria',
+    catAll:'Todo',
+    catScience:'Ciencia',
+    catSports:'Deporte',
+    catHistory:'Historia',
+    catGeo:'Geografia',
+    catKids:'Ninos',
     numQuestions:'Preguntas',
     timePerQ:'Tiempo / pregunta',
     guideTitle:'Como jugar',
@@ -841,7 +892,15 @@ const T = {
     triviaStarted:'بدات التريفيا!',forbiddenStarted:'بدات الكلمة المحظورة!',drawStarted:'بدا الرسم!',
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
     history:'سجل الألعاب',
+    muted:'انت مكتوم',
     settingsTitle:'⚙️ اعدادات',
+    category:'الفئة',
+    catAll:'الكل',
+    catScience:'علوم',
+    catSports:'رياضة',
+    catHistory:'تاريخ',
+    catGeo:'جغرافيا',
+    catKids:'اطفال',
     numQuestions:'عدد الاسئلة',
     timePerQ:'وقت السؤال',
     guideTitle:'كيف تلعب',
@@ -1044,9 +1103,11 @@ function applyT(){
   _ph('drawGuessInp',L.guessDraw);
 
   // Settings labels
-  _st('txt-settingsTitle','settingsTitle');
-  _st('txt-numQuestions','numQuestions');
-  _st('txt-timePerQ','timePerQ');
+  _st('txt-settingsTitle',t('settingsTitle'));
+  _st('txt-numQuestions',t('numQuestions'));
+  _st('txt-timePerQ',t('timePerQ'));
+  _st('txt-categoryLabel',t('category'));
+  _st('cat-all',t('catAll'));
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
   var btnSh=document.getElementById('btn-sh');
@@ -1143,7 +1204,7 @@ window.createRoom=async function(){
 };
 
 // ===== ROOM SETTINGS =====
-var roomSettings={numQ:10,timeQ:20};
+var roomSettings={numQ:10,timeQ:20,category:'all'};
 
 window.setSetting=function(key,val,btn){
   roomSettings[key]=val;
@@ -1153,6 +1214,7 @@ window.setSetting=function(key,val,btn){
   // Save to Firebase
   if(isHost&&roomCode){
     var update={};update['settings_'+key]=val;
+  roomSettings[key]=val;
     db.ref('rooms/'+roomCode).update(update);
   }
 };
@@ -1264,6 +1326,14 @@ window.kickPlayer=function(pid){
   db.ref('rooms/'+roomCode+'/players/'+pid).remove();
 };
 
+window.mutePlayer=function(pid){
+  db.ref('rooms/'+roomCode+'/players/'+pid+'/muted').once('value').then(function(s){
+    var nowMuted=!s.val();
+    db.ref('rooms/'+roomCode+'/players/'+pid+'/muted').set(nowMuted);
+    toast((scores[pid]||{name:'?'}).name+' '+(nowMuted?'🔇':'🔊'),'gold');
+  });
+};
+
 // ===== LISTEN =====
 async function cleanDuplicates(){
   // Remove players that have same name but different ID (from page refresh)
@@ -1309,8 +1379,15 @@ function listenRoom(){
     scores=room.players||{};
     selectedGame=room.game||'trivia';
     // Sync room settings for all players
+    // Update muted state on chat inputs
+    var myMuted=scores[myId]&&scores[myId].muted;
+    ['trivia','forbidden','draw'].forEach(function(g){
+      var inp=document.getElementById(g+'ChatInput');
+      if(inp){inp.disabled=!!myMuted;inp.placeholder=myMuted?'🔇 '+t('muted'):t('messagePlaceholder');}
+    });
     if(room.settings_numQ) roomSettings.numQ=room.settings_numQ;
     if(room.settings_timeQ) roomSettings.timeQ=room.settings_timeQ;
+    if(room.settings_category) roomSettings.category=room.settings_category;
 
     // Check kicked
     if(!isHost&&!scores[myId]){toast(t('kicked'),'red');goTo('home');return;}
@@ -1359,9 +1436,10 @@ function renderSidebarScores(containerId,scoresObj,answered={}){
   const sorted=Object.entries(scoresObj||{}).sort((a,b)=>b[1].score-a[1].score);
   const html=sorted.map(([id,p])=>`
     <div class="sidebar-player ${id===myId?'me':''}">
-      <span class="sidebar-player-name">${p.name||'?'}${answered[id]?' ✅':''}</span>
-      <div style="display:flex;align-items:center;gap:4px;">
+      <span class="sidebar-player-name">${p.name||'?'}${answered[id]?' ✅':''}${p.muted?' 🔇':''}</span>
+      <div style="display:flex;align-items:center;gap:3px;">
         <span class="sidebar-player-pts">${p.score||0}</span>
+        ${isHost&&id!==myId?`<button class="sidebar-mute ${p.muted?'muted':''}" onclick="mutePlayer('${id}')" title="Mute">${p.muted?'🔊':'🔇'}</button>`:''}
         ${isHost&&id!==myId?`<button class="sidebar-kick" onclick="kickPlayer('${id}')">✕</button>`:''}
       </div>
     </div>`).join('');
@@ -1521,18 +1599,18 @@ const TQ={
     {q:'כמה שחקנים בנבחרת כדורגל?',a:'11',w:['10','12','9']},
   ],
   en:[
-    {q:'Capital of France?',a:'Paris',w:['London','Berlin','Rome']},
-    {q:'Colors in a rainbow?',a:'7',w:['5','6','8']},
+    {q:'Capital of France?',a:'Paris',w:['London','Berlin','Rome'],cat:'geo'},
+    {q:'Colors in a rainbow?',a:'7',w:['5','6','8'],cat:'science'},
     {q:'Who wrote "War and Peace"?',a:'Tolstoy',w:['Dostoevsky','Gogol','Chekhov']},
     {q:'Largest planet in solar system?',a:'Jupiter',w:['Saturn','Neptune','Uranus']},
-    {q:'Days in a leap year?',a:'366',w:['365','367','360']},
-    {q:'Largest ocean?',a:'Pacific',w:['Atlantic','Indian','Arctic']},
-    {q:'Who painted the Mona Lisa?',a:'Leonardo da Vinci',w:['Michelangelo','Raphael','Botticelli']},
-    {q:'Chemical symbol for gold?',a:'Au',w:['Ag','Fe','Cu']},
+    {q:'Days in a leap year?',a:'366',cat:'science',w:['365','367','360']},
+    {q:'Largest ocean?',a:'Pacific',cat:'geo',w:['Atlantic','Indian','Arctic']},
+    {q:'Who painted the Mona Lisa?',a:'Leonardo da Vinci',cat:'history',w:['Michelangelo','Raphael','Botticelli']},
+    {q:'Chemical symbol for gold?',a:'Au',cat:'science',w:['Ag','Fe','Cu']},
     {q:'Bones in human body?',a:'206',w:['196','216','180']},
-    {q:'Height of Mount Everest?',a:'8,848m',w:['8,000m','9,000m','7,500m']},
-    {q:'Smallest ocean?',a:'Arctic',w:['Indian','Atlantic','Southern']},
-    {q:'Players in a football team?',a:'11',w:['10','12','9']},
+    {q:'Height of Mount Everest?',a:'8,848m',cat:'geo',w:['8,000m','9,000m','7,500m']},
+    {q:'Smallest ocean?',a:'Arctic',cat:'geo',w:['Indian','Atlantic','Southern']},
+    {q:'Players in a football team?',a:'11',cat:'sports',w:['10','12','9']},
   ],
 };
 
@@ -1562,7 +1640,12 @@ const TQ_EXTRA={
 let triviaTimerStart=0,triviaAnswered={};
 
 function initTrivia(){
-  const baseQ=TQ[lang]||TQ.en;const extraQ=TQ_EXTRA&&TQ_EXTRA[lang]?TQ_EXTRA[lang]:[];const allQ=[...baseQ,...extraQ];const numQ=roomSettings.numQ||10;const qs=allQ.sort(()=>Math.random()-0.5).slice(0,Math.min(numQ,allQ.length));
+  const baseQ=TQ[lang]||TQ.en;const extraQ=TQ_EXTRA&&TQ_EXTRA[lang]?TQ_EXTRA[lang]:[];const allQ=[...baseQ,...extraQ];
+  const cat=roomSettings.category||'all';
+  const filtered=cat==='all'?allQ:allQ.filter(function(q){return q.cat===cat||!q.cat;});
+  const pool=filtered.length>=3?filtered:allQ; // fallback if category has too few questions
+  const numQ=roomSettings.numQ||10;
+  const qs=pool.sort(()=>Math.random()-0.5).slice(0,Math.min(numQ,pool.length));
   const initSc={};Object.keys(scores).forEach(id=>initSc[id]=0);
   const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
   db.ref('rooms/'+roomCode).update({
