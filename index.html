@@ -1508,26 +1508,48 @@ function renderHostControls(containerId,extraBtns){
   if(!isHost)return;
   var el=document.getElementById(containerId);
   if(!el)return;
-  var bId='bc'+containerId.replace(/[^a-z0-9]/gi,'');
-  var tId='bt'+containerId.replace(/[^a-z0-9]/gi,'');
-  var bc=t('broadcast')||'Message All';
-  var bp=t('broadcastPlaceholder')||'Type message';
-  var eg=t('endGame')||'End Game';
-  var ho=t('host')||'Host';
+  var bId='bc_'+containerId;
+  var tId='bt_'+containerId;
+  el.setAttribute('data-bcast-ids', bId+'|'+tId);
   el.innerHTML=
     '<div class="host-controls">'+
-    '<div class="host-ctrl-title">&#127963; '+ho+'</div>'+
+    '<div class="host-ctrl-title">&#9881; '+t('host')+'</div>'+
     extraBtns+
-    '<button class="host-ctrl-btn" onclick="showBI(this)" data-target="'+bId+'" style="border-color:var(--blue);color:var(--blue);">&#128226; '+bc+'</button>'+
-    '<div id="'+bId+'" style="display:none;margin-top:6px;">'+
+    '<button class="host-ctrl-btn hbc-toggle" style="border-color:var(--blue);color:var(--blue);">&#128226; '+t('broadcast')+'</button>'+
+    '<div class="hbc-panel" style="display:none;margin-top:6px;">'+
       '<div style="display:flex;gap:5px;">'+
-        '<input id="'+tId+'" style="flex:1;background:var(--dark3);border:1px solid var(--gold-dim);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.78rem;font-family:Heebo,sans-serif;" placeholder="'+bp+'...">'+
-        '<button onclick="sendBI(''+tId+'',''+bId+'')" style="background:var(--blue);border:none;color:#FFF;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;">&#10148;</button>'+
+        '<input class="hbc-input" style="flex:1;background:var(--dark3);border:1px solid var(--gold-dim);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.78rem;font-family:Heebo,sans-serif;" placeholder="'+t('broadcastPlaceholder')+'...">'+
+        '<button class="hbc-send" style="background:var(--blue);border:none;color:#FFF;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;">&#10148;</button>'+
       '</div>'+
     '</div>'+
-    '<button class="host-ctrl-btn danger" onclick="confirmEndGame()">'+eg+'</button>'+
+    '<button class="host-ctrl-btn danger" onclick="confirmEndGame()">'+t('endGame')+'</button>'+
     '</div>';
+  // Attach events after innerHTML
+  var tog=el.querySelector('.hbc-toggle');
+  var panel=el.querySelector('.hbc-panel');
+  var inp=el.querySelector('.hbc-input');
+  var snd=el.querySelector('.hbc-send');
+  if(tog)tog.addEventListener('click',function(){panel.style.display=panel.style.display==='none'?'block':'none';});
+  if(snd)snd.addEventListener('click',function(){
+    if(!inp||!inp.value.trim())return;
+    db.ref('rooms/'+roomCode+'/broadcast').set({text:inp.value.trim(),ts:Date.now(),from:myName});
+    inp.value='';panel.style.display='none';
+  });
 }
+
+window.toggleBroadcast=function(id){
+  var d=document.getElementById(id);
+  if(d)d.style.display=(d.style.display==='none'?'block':'none');
+};
+
+window.doSendBroadcast=function(inputId,divId){
+  var inp=document.getElementById(inputId);
+  if(!inp||!inp.value.trim())return;
+  db.ref('rooms/'+roomCode+'/broadcast').set({text:inp.value.trim(),ts:Date.now(),from:myName});
+  inp.value='';
+  var d=document.getElementById(divId);
+  if(d)d.style.display='none';
+};
 window.confirmEndGame=function(){
   if(confirm(t('endConfirm')))
     db.ref('rooms/'+roomCode).update({status:'results',finalScores:getScoresFlat()});
