@@ -4131,7 +4131,17 @@ function loadRace(room) {
   raceCanvasH = Math.round(raceCanvasW * 0.7);
   canvas.width = raceCanvasW;
   canvas.height = raceCanvasH;
+  canvas.style.width = raceCanvasW + 'px';
   canvas.style.height = raceCanvasH + 'px';
+  // Also size the 3D canvas
+  var canvas3d = document.getElementById('raceCanvas3d');
+  if(canvas3d) {
+    canvas3d.width = raceCanvasW;
+    canvas3d.height = raceCanvasH;
+    canvas3d.style.width = raceCanvasW + 'px';
+    canvas3d.style.height = raceCanvasH + 'px';
+    canvas3d.style.display = 'none';
+  }
   
   // Show/hide countdown
   var cdEl = document.getElementById('raceCountdown');
@@ -4265,10 +4275,28 @@ window.setRaceView = function(mode) {
     if(canvas2d) canvas2d.style.display = 'none';
     if(canvas3d) {
       canvas3d.style.display = 'block';
-      if(!threeRenderer) initThreeJS();
+      canvas3d.width = raceCanvasW;
+      canvas3d.height = raceCanvasH;
+      canvas3d.style.width = raceCanvasW + 'px';
+      canvas3d.style.height = raceCanvasH + 'px';
+      if(!threeRenderer) {
+        initThreeJS();
+      } else {
+        // Resize existing renderer
+        threeRenderer.setSize(raceCanvasW, raceCanvasH);
+        if(threeCamera) threeCamera.aspect = raceCanvasW / raceCanvasH;
+        if(threeCamera) threeCamera.updateProjectionMatrix();
+      }
+      // Start 3D loop with latest room data
+      db.ref('rooms/'+roomCode).once('value').then(function(snap){
+        if(snap.exists() && snap.val().status==='race') {
+          if(threeAnimId) cancelAnimationFrame(threeAnimId);
+          updateThreeJS(snap.val());
+        }
+      });
     }
   } else {
-    if(canvas2d) canvas2d.style.display = 'block';
+    if(canvas2d) { canvas2d.style.display = 'block'; }
     if(canvas3d) canvas3d.style.display = 'none';
     if(threeAnimId) { cancelAnimationFrame(threeAnimId); threeAnimId = null; }
   }
@@ -4556,23 +4584,53 @@ function updateThreeJS(room) {
   var camX = myX - Math.cos(angle) * camDist;
   var camZ = myZ - Math.sin(angle) * camDist;
 
-  threeCamera.position.lerp(new THREE.Vector3(camX, camHeight, camZ), 0.15);
-  var lookAt = new THREE.Vector3(
-    myX + Math.cos(angle)*8,
-    1.5,
-    myZ + Math.sin(angle)*8
-  );
-  threeCamera.lookAt(lookAt);
-
-  // Draw minimap on 2D canvas overlay
-  var c2 = document.getElementById('raceCanvas');
-  if(c2) {
-    var ctx2 = c2.getContext('2d');
-    draw3dMinimap(ctx2, room, raceCanvasW, raceCanvasH);
+  threeCamera.position.x += (camX - threeCamera.position.x) * 0.15;
+  threeCamera.position.y += (camHeight - threeCamera.position.y) * 0.15;
+  threeCamera.position.z += (camZ - threeCamera.position.z) * 0.15;
+  if(window.THREE) {
+    threeCamera.lookAt(new THREE.Vector3(
+      myX + Math.cos(angle)*8, 1.5, myZ + Math.sin(angle)*8
+    ));
   }
 
+  // Draw minimap overlay on a 2D canvas on top of 3D
+  var mmCanvas = document.getElementById('raceMinimapCanvas');
+  if(!mmCanvas) {
+    mmCanvas = document.createElement('canvas');
+    mmCanvas.id = 'raceMinimapCanvas';
+    mmCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:10;';
+    var container = document.getElementById('raceCanvas3d').parentNode;
+    container.appendChild(mmCanvas);
+  }
+  mmCanvas.width = raceCanvasW;
+  mmCanvas.height = raceCanvasH;
+  mmCanvas.style.display = raceView==='3d' ? 'block' : 'none';
+  var mmCtx = mmCanvas.getContext('2d');
+  mmCtx.clearRect(0,0,raceCanvasW,raceCanvasH);
+  draw3dMinimap(mmCtx, room, raceCanvasW, raceCanvasH);
+  // Also draw lap + position info
+  mmCtx.fillStyle='#C9A84C';
+  mmCtx.font='bold 13px Cinzel,serif';
+  mmCtx.textAlign='right';
+  mmCtx.shadowColor='#000'; mmCtx.shadowBlur=4;
+  var myD3=room.racePlayers&&room.racePlayers[myId];
+  var myLap3=myD3?Math.min((myD3.lap||0)+1,TOTAL_LAPS):1;
+  mmCtx.fillText('LAP '+myLap3+'/'+TOTAL_LAPS, raceCanvasW-8, 22);
+  mmCtx.shadowBlur=0;
+
   threeRenderer.render(threeScene, threeCamera);
-  threeAnimId = requestAnimationFrame(function(){ updateThreeJS(room); });
+  // Update minimap on 2D canvas (overlay)
+  if(raceView === '3d') {
+    threeAnimId = requestAnimationFrame(function(){
+      // Get latest room from Firebase listener
+      db.ref('rooms/'+roomCode+'/racePlayers').once('value').then(function(snap){
+        if(snap.exists() && raceView==='3d') {
+          room.racePlayers = snap.val();
+          updateThreeJS(room);
+        }
+      });
+    });
+  }
 }
 
 function draw3dMinimap(ctx, room, W, H) {
