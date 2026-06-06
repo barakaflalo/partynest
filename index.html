@@ -459,6 +459,29 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb"><span class="game-opt-icon">💣</span><span class="game-opt-name" id="gn-bomb">Hot Potato</span></div>
         <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr"><span class="game-opt-icon">🔮</span><span class="game-opt-name" id="gn-wyr">Vote / WYR</span></div>
       </div>
+      <!-- WHO AM I SETUP - shown when whoami selected -->
+      <div id="whoamiLobbySetup" style="display:none;background:var(--dark2);border:1px solid var(--gold-dim);border-radius:12px;padding:12px;margin-top:8px;">
+        <div style="font-size:0.72rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:10px;">🃏 WHO AM I SETTINGS</div>
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Max guesses before identity revealed:</div>
+        <div class="settings-opts" style="margin-bottom:10px;">
+          <button class="settings-opt" onclick="setWhoamiMaxGuesses(3,this)">3</button>
+          <button class="settings-opt active" onclick="setWhoamiMaxGuesses(5,this)">5</button>
+          <button class="settings-opt" onclick="setWhoamiMaxGuesses(8,this)">8</button>
+          <button class="settings-opt" onclick="setWhoamiMaxGuesses(99,this)">∞</button>
+        </div>
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;">Identity source:</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="settings-opt active" onclick="setWhoamiIdentityMode('preset',this)">🎭 Preset</button>
+          <button class="settings-opt" onclick="setWhoamiIdentityMode('custom',this)">✏️ Custom</button>
+        </div>
+        <div id="whoamiCustomListLobby" style="display:none;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <input class="big-input" id="whoamiCustomInput" style="font-size:0.78rem;" placeholder="Add identity (e.g. Batman)">
+            <button class="settings-opt" onclick="addWhoamiIdentity()" style="flex-shrink:0;padding:8px 12px;">➕</button>
+          </div>
+          <div id="whoamiCustomListItems" style="max-height:100px;overflow-y:auto;font-size:0.78rem;color:var(--text-dim);"></div>
+        </div>
+      </div>
       <!-- ROOM SETTINGS - shown only for trivia -->
       <div class="room-settings" id="roomSettingsPanel" style="margin-top:10px;">
         <div class="settings-title" id="txt-settingsTitle">⚙️ ROOM SETTINGS</div>
@@ -1404,8 +1427,12 @@ window.setSetting=function(key,val,btn){
 window.selectGame=function(g){
   selectedGame=g;
   document.querySelectorAll('.game-opt').forEach(el=>el.classList.remove('active'));
-  document.getElementById('go-'+g).classList.add('active');
+  var goEl=document.getElementById('go-'+g);
+  if(goEl)goEl.classList.add('active');
   db.ref('rooms/'+roomCode).update({game:g});
+  // Show Who Am I setup in lobby
+  var whoamiSetup=document.getElementById('whoamiLobbySetup');
+  if(whoamiSetup)whoamiSetup.style.display=(g==='whoami'?'block':'none');
   // Show/hide settings panel (only relevant for trivia)
   var sp=document.getElementById('roomSettingsPanel');
   if(sp)sp.style.display=(g==='trivia'||g==='bomb'?'':'none');
@@ -1478,12 +1505,13 @@ window.joinRoom=async function(){
   localStorage.setItem('pn_room',code);
   const snap=await db.ref('rooms/'+code).once('value');
   if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
-  // Inherit host lang
+  // Inherit host lang AND game
   var rd=snap.val();
   if(rd&&rd.lang&&rd.lang!==lang){
     var lb=document.querySelector('.float-lang-btn[data-lang="'+rd.lang+'"]');
     setLang(rd.lang,lb);
   }
+  if(rd&&rd.game) selectedGame=rd.game;
   scores[myId]={name:myName,score:0};
   await db.ref('rooms/'+code+'/players/'+myId).set({name:myName,score:0});
   document.getElementById('lobbyCodeDisp2').textContent=code;
@@ -1602,6 +1630,7 @@ function listenRoom(){
       }
     }
     else if(room.status==='trivia')loadTrivia(room);
+    else if(room.status==='trivia_summary')loadTriviaSummary(room);
     else if(room.status==='forbidden')loadForbidden(room);
     else if(room.status==='whoami')loadWhoami(room);
     else if(room.status==='bomb')loadBomb(room);
@@ -2747,10 +2776,13 @@ window.setWhoamiMaxGuesses=function(n,btn){
 
 window.setWhoamiIdentityMode=function(mode,btn){
   whoamiIdentityMode=mode;
-  document.querySelectorAll('#whoamiIdentityType .settings-opt').forEach(b=>b.classList.remove('active'));
+  if(btn&&btn.parentElement)btn.parentElement.querySelectorAll('.settings-opt').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  var cl=document.getElementById('whoamiCustomList');
-  if(cl)cl.style.display=mode==='custom'?'block':'none';
+  // Handle both lobby and game screen containers
+  ['whoamiCustomList','whoamiCustomListLobby'].forEach(function(id){
+    var cl=document.getElementById(id);
+    if(cl)cl.style.display=mode==='custom'?'block':'none';
+  });
 };
 
 window.addWhoamiIdentity=function(){
@@ -2868,7 +2900,10 @@ function loadWyr(room){
     document.getElementById('wyrBarB').style.width=pctB+'%';
     document.getElementById('wyrPctA').textContent=cntA+' ('+pctA+'%)';
     document.getElementById('wyrPctB').textContent=cntB+' ('+pctB+'%)';
+    var allVoted=(cntA+cntB)>=total;
     document.getElementById('wyrVoted').textContent=(cntA+cntB)+'/'+total+' voted';
+    var autoDiv=document.getElementById('wyrAutoAdvance');
+    if(autoDiv)autoDiv.style.display=allVoted?'block':'none';
     const myVote=votes[myId];
     document.getElementById('wyrOptA').classList.toggle('wyr-voted',myVote==='A');
     document.getElementById('wyrOptB').classList.toggle('wyr-voted',myVote==='B');
@@ -2932,13 +2967,28 @@ window.endWyrSession=async function(){
   });
 };
 
-window.voteWyr=function(choice){
-  db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value').then(function(s){
-    if(s.val())return;
-    db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).set(choice);
-    db.ref('rooms/'+roomCode+'/wyrPlayers/'+myId+'/score').transaction(s=>(s||0)+50);
-    playSound('correct');
-  });
+window.voteWyr=async function(choice){
+  const snap=await db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value');
+  if(snap.val())return;
+  await db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).set(choice);
+  db.ref('rooms/'+roomCode+'/wyrPlayers/'+myId+'/score').transaction(s=>(s||0)+50);
+  playSound('correct');
+  // Check if all players voted - auto-advance after 3s
+  if(isHost){
+    const roomSnap=await db.ref('rooms/'+roomCode).once('value');
+    const r=roomSnap.val();
+    const totalPlayers=Object.keys(r.players||{}).length;
+    const votedCount=Object.keys(r.wyrAnswers||{}).length+1; // +1 for this vote
+    if(votedCount>=totalPlayers){
+      // All voted! Wait 3 seconds then advance
+      setTimeout(async function(){
+        const latestSnap=await db.ref('rooms/'+roomCode).once('value');
+        if(latestSnap.exists()&&latestSnap.val().wyrState==='voting'){
+          nextWyrRound();
+        }
+      },3000);
+    }
+  }
 };
 
 window.nextWyrRound=async function(){
@@ -3157,25 +3207,35 @@ function loadBomb(room){
       passBtn.style.position='relative';passBtn.style.left='0';passBtn.style.top='0';
       passBtn.style.width='100%';passBtn.style.opacity='1';
     } else if(diff2==='medium'){
-      // Medium: medium button, changes position every pass
-      passBtn.style.fontSize='0.9rem';passBtn.style.padding='10px';
-      passBtn.style.width='60%';
+      // Medium: medium button, fixed position but smaller
+      passBtn.style.fontSize='0.85rem';passBtn.style.padding='10px 14px';
+      passBtn.style.width='55%';
       passBtn.style.position='relative';
-      var rx2=(Math.random()*40-20);
-      passBtn.style.left=rx2+'px';passBtn.style.top='0';
+      // Moves to random side
+      var rx2=(Math.random()>0.5?1:-1)*(30+Math.random()*50);
+      var ry2=(Math.random()>0.5?1:-1)*(10+Math.random()*20);
+      passBtn.style.left=rx2+'px';passBtn.style.top=ry2+'px';
       passBtn.style.opacity='0.9';
     } else {
-      // Hard: small button, moves constantly
-      passBtn.style.fontSize='0.75rem';passBtn.style.padding='6px 10px';
-      passBtn.style.width='35%';passBtn.style.opacity='0.8';
-      passBtn.style.position='relative';
-      passBtn._moveInterval=setInterval(function(){
-        var rx3=(Math.random()*160-80);var ry3=(Math.random()*60-30);
-        passBtn.style.left=rx3+'px';passBtn.style.top=ry3+'px';
-        // Get smaller each press
-        var currentW=parseInt(passBtn.style.width)||35;
-        passBtn.style.width=Math.max(15,currentW-1)+'%';
-      },1800);
+      // Hard: small button, moves all over the screen randomly
+      passBtn.style.fontSize='0.7rem';passBtn.style.padding='5px 8px';
+      passBtn.style.width='30%';passBtn.style.opacity='0.85';
+      passBtn.style.position='fixed';passBtn.style.zIndex='100';
+      var bombContainer=document.querySelector('.bomb-display');
+      function moveHardBtn(){
+        var maxW=window.innerWidth-150;
+        var maxH=window.innerHeight-80;
+        var rx4=Math.floor(Math.random()*maxW);
+        var ry4=Math.floor(Math.random()*maxH)+40;
+        passBtn.style.left=rx4+'px';passBtn.style.top=ry4+'px';
+        // Shrink a bit each move
+        var curSize=parseFloat(passBtn.style.fontSize)||0.7;
+        passBtn.style.fontSize=Math.max(0.5,curSize-0.02)+'rem';
+        var curPad=parseInt(passBtn.style.padding)||5;
+        passBtn.style.padding=Math.max(2,curPad-0.2)+'px '+Math.max(4,curPad)+'px';
+      }
+      moveHardBtn();
+      passBtn._moveInterval=setInterval(moveHardBtn,1600);
     }
   } else if(passBtn){
     passBtn.style.display='none';
@@ -3572,6 +3632,7 @@ function initNumber(){initTrivia();}
           </div>
         </div>
         <div class="answered-bar" id="wyrVoted" style="margin-top:10px;">0 voted</div>
+      <div id="wyrAutoAdvance" style="display:none;text-align:center;color:var(--green);font-size:0.85rem;margin-top:6px;font-weight:700;">✅ Everyone voted! Next in <span id="wyrCountdown">3</span>s...</div>
       </div>
       <div class="chat-box" style="margin-top:10px;">
         <div class="chat-messages" id="wyrChatMsgs"></div>
