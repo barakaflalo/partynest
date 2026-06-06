@@ -251,6 +251,31 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
 .color-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:all 0.15s;}
 .color-dot:hover,.color-dot.active{border-color:#FFF;transform:scale(1.15);}
 
+
+/* ===== COUNTDOWN OVERLAY ===== */
+.countdown-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.countdown-num{font-family:'Cinzel',serif;font-size:7rem;color:var(--gold);animation:countPop 0.9s ease-out;text-shadow:0 0 40px rgba(201,168,76,0.6);}
+.countdown-label{font-size:1.1rem;color:var(--text-dim);letter-spacing:3px;}
+@keyframes countPop{0%{transform:scale(2);opacity:0;}50%{transform:scale(1.1);opacity:1;}100%{transform:scale(1);opacity:1;}}
+
+/* ===== ROUND SUMMARY OVERLAY ===== */
+.round-summary{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+.round-summary-box{background:var(--dark);border:1px solid var(--gold-dim);border-radius:16px;padding:24px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;}
+.round-summary-title{font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);text-align:center;margin-bottom:6px;}
+.round-answer{text-align:center;font-size:1rem;color:var(--green);font-weight:700;margin-bottom:16px;}
+.round-player-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;margin-bottom:6px;background:var(--dark2);}
+.round-player-correct{border-left:3px solid var(--green);}
+.round-player-wrong{border-left:3px solid var(--red);}
+.round-player-name{flex:1;font-size:0.88rem;}
+.round-player-pts{font-family:'Cinzel',serif;font-size:0.88rem;color:var(--gold);}
+.round-next-bar{margin-top:14px;height:4px;background:var(--dark3);border-radius:2px;overflow:hidden;}
+.round-next-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:2px;transition:width 0.1s linear;}
+
+/* ===== HISTORY ===== */
+.history-row{display:flex;justify-content:space-between;padding:6px 10px;background:var(--dark2);border-radius:8px;margin-bottom:4px;font-size:0.82rem;}
+.history-label{color:var(--text-dim);}
+.history-val{color:var(--gold);font-weight:700;}
+
 </style>
 </head>
 <body>
@@ -626,6 +651,7 @@ const T = {
     leaveConfirm:'Leave the game?',endConfirm:'End the game?',drawWord:'Draw the word!',
     triviaStarted:'🧠 Trivia started!',forbiddenStarted:'🚫 Forbidden Word started!',drawStarted:'🎨 Drawing started!',
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
+    history:'Game History',
     guideTitle:'How to Play',
     guideStep1Title:'Create or Join a Room',guideStep1Desc:'The host creates a room and gets a 4-digit code. Players join by entering the code or scanning the QR.',
     guideStep2Title:'Choose a Game',guideStep2Desc:'The host picks one of 3 games: Trivia, Forbidden Word, or Drawing.',
@@ -661,6 +687,7 @@ const T = {
     leaveConfirm:'לצאת מהמשחק?',endConfirm:'לסיים את המשחק?',drawWord:'צייר את המילה!',
     triviaStarted:'🧠 טריוויה התחילה!',forbiddenStarted:'🚫 מילה אסורה התחילה!',drawStarted:'🎨 ציור התחיל!',
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
+    history:'היסטוריית משחקים',
     guideTitle:'איך משחקים',
     guideStep1Title:'צור או הצטרף לחדר',guideStep1Desc:'המארח פותח חדר ומקבל קוד 4 ספרות. שחקנים מצטרפים עם הקוד או בסריקת QR.',
     guideStep2Title:'בחר משחק',guideStep2Desc:'המארח בוחר אחד מ-3 משחקים: טריוויה, מילה אסורה, או ציור.',
@@ -696,6 +723,7 @@ const T = {
     leaveConfirm:'Выйти из игры?',endConfirm:'Завершить игру?',drawWord:'Нарисуй слово!',
     triviaStarted:'🧠 Викторина началась!',forbiddenStarted:'🚫 Запретное слово началось!',drawStarted:'🎨 Рисование началось!',
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
+    history:'История игр',
     guideTitle:'Как играть',
     guideStep1Title:'Создай или войди в комнату',guideStep1Desc:'Хост создаёт комнату и получает 4-значный код. Игроки входят по коду или QR.',
     guideStep2Title:'Выбери игру',guideStep2Desc:'Хост выбирает одну из 3 игр: Викторина, Запретное слово или Рисование.',
@@ -731,6 +759,7 @@ const T = {
     leaveConfirm:'Abandonar el juego?',endConfirm:'Terminar el juego?',drawWord:'Dibuja la palabra!',
     triviaStarted:'🧠 Trivia comenzo!',forbiddenStarted:'🚫 Palabra Prohibida comenzo!',drawStarted:'🎨 Dibujo comenzo!',
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
+    history:'Historial',
     guideTitle:'Como jugar',
     guideStep1Title:'Crea o unete a una sala',guideStep1Desc:'El anfitrion crea una sala y obtiene un codigo de 4 digitos. Los jugadores se unen con el codigo o QR.',
     guideStep2Title:'Elige un juego',guideStep2Desc:'El anfitrion elige uno de 3 juegos: Trivia, Palabra Prohibida o Dibujo.',
@@ -766,6 +795,7 @@ const T = {
     leaveConfirm:'مغادرة اللعبة؟',endConfirm:'انهاء اللعبة؟',drawWord:'ارسم الكلمة!',
     triviaStarted:'بدات التريفيا!',forbiddenStarted:'بدات الكلمة المحظورة!',drawStarted:'بدا الرسم!',
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
+    history:'سجل الألعاب',
     guideTitle:'كيف تلعب',
     guideStep1Title:'انشئ غرفة او انضم اليها',guideStep1Desc:'المضيف ينشئ غرفة ويحصل على كود من 4 ارقام. اللاعبون ينضمون بالكود او QR.',
     guideStep2Title:'اختر لعبة',guideStep2Desc:'المضيف يختار واحدة من 3 العاب: تريفيا، كلمة محظورة، او رسم.',
@@ -1181,6 +1211,22 @@ async function cleanDuplicates(){
   }
 }
 
+var _countdownShown=false;
+function handleCountdown(room){
+  if(_countdownShown)return;
+  _countdownShown=true;
+  showCountdown(function(){
+    _countdownShown=false;
+    if(isHost){
+      // Start actual game after countdown
+      if(selectedGame==='trivia')initTrivia();
+      else if(selectedGame==='forbidden')initForbidden();
+      else if(selectedGame==='draw')initDraw();
+    }
+    // Non-host will pick up status change via listenRoom
+  });
+}
+
 function listenRoom(){
   if(roomRef){roomRef.off('value');}
   roomRef=db.ref('rooms/'+roomCode);
@@ -1196,7 +1242,8 @@ function listenRoom(){
     // Check kicked
     if(!isHost&&!scores[myId]){toast(t('kicked'),'red');goTo('home');return;}
 
-    if(room.status==='lobby'){
+    if(room.status==='countdown'){handleCountdown(room);}
+    else if(room.status==='lobby'){
       if(isHost){setupLobbyHost();renderLobbyPlayers(room);}
       else{
         document.getElementById('playerGameBadge').textContent='🎮 '+t(selectedGame);
@@ -1302,13 +1349,79 @@ function systemMsg(text){
 }
 
 // ===== START GAME =====
+// =====================
+// COUNTDOWN
+// =====================
+function showCountdown(cb){
+  var overlay=document.createElement('div');
+  overlay.className='countdown-overlay';
+  document.body.appendChild(overlay);
+  var nums=[3,2,1];
+  var i=0;
+  function tick(){
+    if(i<nums.length){
+      overlay.innerHTML='<div class="countdown-num">'+nums[i]+'</div><div class="countdown-label">'+t('startGame').replace(' ▶','')+'...</div>';
+      i++;
+      setTimeout(tick,900);
+    } else {
+      overlay.innerHTML='<div class="countdown-num" style="font-size:3rem">🚀</div>';
+      setTimeout(function(){overlay.remove();cb();},600);
+    }
+  }
+  tick();
+}
+
+// =====================
+// ROUND SUMMARY
+// =====================
+function showRoundSummary(room, onNext){
+  var q=room.triviaQuestions[room.triviaIndex||0];
+  var answers=room.triviaAnswers||{};
+  var scores2=room.triviaScores||{};
+  var overlay=document.createElement('div');
+  overlay.className='round-summary';
+
+  var playersHtml=Object.entries(room.players||{}).map(function(e){
+    var id=e[0],p=e[1];
+    var ans=answers[id];
+    var correct=ans===q.a;
+    var pts=correct?scores2[id]||0:0;
+    return '<div class="round-player-row '+(correct?'round-player-correct':'round-player-wrong')+'">'+
+      '<span style="font-size:1.1rem;">'+(correct?'✅':'❌')+'</span>'+
+      '<span class="round-player-name">'+p.name+(id===myId?' 👤':'')+'</span>'+
+      '<span class="round-player-pts">'+(correct?'+'+Math.max(50,100+(20-Math.floor((Date.now()-(room.triviaStart||Date.now()))/1000))*5)+' pts':'')+'</span>'+
+    '</div>';
+  }).join('');
+
+  overlay.innerHTML='<div class="round-summary-box">'+
+    '<div class="round-summary-title">'+t('question')+' '+(room.triviaIndex||0+1)+'</div>'+
+    '<div class="round-answer">✅ '+q.a+'</div>'+
+    playersHtml+
+    '<div class="round-next-bar"><div class="round-next-fill" id="summaryFill" style="width:0%"></div></div>'+
+  '</div>';
+  document.body.appendChild(overlay);
+
+  // Auto-advance after 4 seconds
+  var start=Date.now();var dur=4000;
+  var fillInterval=setInterval(function(){
+    var pct=Math.min(100,(Date.now()-start)/dur*100);
+    var fill=document.getElementById('summaryFill');
+    if(fill)fill.style.width=pct+'%';
+    if(pct>=100){clearInterval(fillInterval);overlay.remove();onNext();}
+  },50);
+
+  // Click to skip
+  overlay.addEventListener('click',function(){
+    clearInterval(fillInterval);overlay.remove();onNext();
+  });
+}
+
 window.startGame=function(){
   const ps=Object.keys(scores);
   if(!ps.length){toast(t('needPlayer'),'red');return;}
   playSound('start');
-  if(selectedGame==='trivia')initTrivia();
-  else if(selectedGame==='forbidden')initForbidden();
-  else if(selectedGame==='draw')initDraw();
+  // Save countdown_started to Firebase so all players see it
+  db.ref('rooms/'+roomCode).update({status:'countdown',countdownStart:Date.now()});
 };
 
 function clearAllTimers(){
@@ -1387,8 +1500,63 @@ function initTrivia(){
   systemMsg(t('triviaStarted'));
 }
 
+var _summaryShown=-1;
+function loadTriviaSummary(room){
+  var idx=room.summaryIndex;
+  if(typeof idx==='undefined')return;
+  if(_summaryShown===idx)return;
+  _summaryShown=idx;
+  var q=room.triviaQuestions[idx];
+  if(!q)return;
+  // Remove any existing summary
+  var ex=document.querySelector('.round-summary');if(ex)ex.remove();
+
+  var answers=room.triviaAnswers||{};
+  var tScores=room.triviaScores||{};
+  var overlay=document.createElement('div');
+  overlay.className='round-summary';
+
+  var playersHtml=Object.entries(room.players||{}).sort(function(a,b){
+    return (tScores[b[0]]||0)-(tScores[a[0]]||0);
+  }).map(function(entry){
+    var id=entry[0],p=entry[1];
+    var ans=answers[id];
+    var correct=(ans===q.a);
+    return '<div class="round-player-row '+(correct?'round-player-correct':'round-player-wrong')+'">'+
+      '<span style="font-size:1rem;width:22px;text-align:center;">'+(correct?'✅':'❌')+'</span>'+
+      '<span class="round-player-name">'+p.name+(id===myId?' 👤':'')+'</span>'+
+      '<span class="round-player-pts" style="color:'+(correct?'var(--green)':'var(--red)')+'">'+
+        (correct?'+'+(tScores[id]||0)+' pts':'0 pts')+
+      '</span>'+
+    '</div>';
+  }).join('');
+
+  var nextIdx=(idx+1);
+  var isLast=nextIdx>=(room.triviaQuestions||[]).length;
+
+  overlay.innerHTML='<div class="round-summary-box">'+
+    '<div class="round-summary-title">'+t('question')+' '+(idx+1)+' / '+(room.triviaQuestions.length)+'</div>'+
+    '<div class="round-answer">✅ '+q.a+'</div>'+
+    '<div style="font-size:0.78rem;color:var(--text-dim);text-align:center;margin-bottom:12px;">'+q.q+'</div>'+
+    playersHtml+
+    '<div style="text-align:center;font-size:0.75rem;color:var(--text-dim);margin-top:12px;">'+(isLast?'🏁 '+t('gameOver'):t('nextRound')+' →')+'</div>'+
+    '<div class="round-next-bar" style="margin-top:10px;"><div class="round-next-fill" id="summaryFill'+idx+'" style="width:0%"></div></div>'+
+  '</div>';
+  document.body.appendChild(overlay);
+
+  var start=Date.now();var dur=4000;
+  var iv=setInterval(function(){
+    var pct=Math.min(100,(Date.now()-start)/dur*100);
+    var fill=document.getElementById('summaryFill'+idx);
+    if(fill)fill.style.width=pct+'%';
+    if(pct>=100){clearInterval(iv);}
+  },50);
+}
+
 function loadTrivia(room){
   if(!room.triviaQuestions)return;
+  // Remove summary overlay if present
+  var ex=document.querySelector('.round-summary');if(ex)ex.remove();
   const idx=room.triviaIndex||0;
   const qs=room.triviaQuestions;
   const q=qs[idx];
@@ -1496,12 +1664,22 @@ async function advanceTrivia(room){
   if(!snap.exists())return;
   const r=snap.val();
   const next=(r.triviaIndex||0)+1;
-  if(next>=(r.triviaQuestions||[]).length){
-    const fs={};
-    Object.entries(r.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
-    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
-  } else {
-    await db.ref('rooms/'+roomCode).update({triviaIndex:next,triviaAnswers:{},triviaStart:Date.now()});
+  // Show round summary first (only on host's screen - others see it via status change)
+  if(isHost){
+    // Signal summary to all players
+    await db.ref('rooms/'+roomCode).update({status:'trivia_summary',summaryIndex:r.triviaIndex||0});
+    // After 4.5s, advance or end
+    setTimeout(async function(){
+      const snap2=await db.ref('rooms/'+roomCode).once('value');
+      if(!snap2.exists())return;
+      if(next>=(r.triviaQuestions||[]).length){
+        const fs={};
+        Object.entries(r.triviaScores||{}).forEach(([id,s])=>fs[id]=s);
+        await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+      } else {
+        await db.ref('rooms/'+roomCode).update({triviaIndex:next,triviaAnswers:{},triviaStart:Date.now(),status:'trivia'});
+      }
+    },4500);
   }
 }
 
@@ -1874,14 +2052,17 @@ function showResults(room){
   const podium=document.getElementById('podiumWrap');
   const cls=['gold','silver','bronze'];
   const medals=['🥇','🥈','🥉'];
+  // order: silver(1), gold(0), bronze(2) — visually left=silver, center=gold, right=bronze
   const order=[1,0,2];
-  podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos,i)=>{
+  podium.style.direction='ltr';
+  podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos)=>{
     const [id,pts]=sorted[pos]||[null,0];
     const name=(scores[id]||{name:'?'}).name;
+    const heights=['90px','110px','65px'];
     return`<div class="podium-col">
-      <div class="podium-bar ${cls[i]}">${medals[pos]||pos+1}</div>
-      <div class="podium-name">${name}</div>
-      <div style="font-size:0.75rem;color:var(--gold);">${pts}</div>
+      <div class="podium-bar ${cls[pos]}" style="height:${heights[pos]}">${medals[pos]}</div>
+      <div class="podium-name">${name||'?'}</div>
+      <div style="font-size:0.75rem;color:var(--gold);font-family:'Cinzel',serif;">${pts}</div>
     </div>`;
   }).join('');
   // Table
@@ -1892,14 +2073,57 @@ function showResults(room){
       <div class="score-final-pts">${pts}</div>
     </div>`).join('');
   playSound('start');
+  // Load history
+  loadHistory();
+}
+
+function loadHistory(){
+  db.ref('rooms/'+roomCode+'/history').once('value').then(function(snap){
+    var el=document.getElementById('historySection');
+    if(!el)return;
+    if(!snap.exists()){el.innerHTML='';return;}
+    var games=Object.values(snap.val()).sort(function(a,b){return b.ts-a.ts});
+    if(!games.length){el.innerHTML='';return;}
+    var gameIcons={trivia:'🧠',forbidden:'🚫',draw:'🎨'};
+    var html='<div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;text-align:center;">'+t('history')+'</div>';
+    html+=games.slice(0,5).map(function(g,i){
+      var sorted=Object.entries(g.scores||{}).sort(function(a,b){return b[1]-a[1]});
+      var winner=sorted[0];
+      var winnerName=winner?(scores[winner[0]]||{name:'?'}).name:'?';
+      var date=new Date(g.ts);
+      var timeStr=date.getHours()+':'+('0'+date.getMinutes()).slice(-2);
+      return '<div class="history-row">'+
+        '<span class="history-label">'+(gameIcons[g.game]||'🎮')+' '+(i===0?'Last game':'Game '+(games.length-i))+'</span>'+
+        '<span class="history-val">🏆 '+winnerName+'</span>'+
+        '<span class="history-label">'+timeStr+'</span>'+
+      '</div>';
+    }).join('');
+    el.innerHTML='<div style="background:var(--dark2);border-radius:12px;padding:12px;width:100%;">'+html+'</div>';
+  });
 }
 
 window.backToLobby=async function(){
+  _countdownShown=false;
+  _summaryShown=-1;
   if(isHost){
+    // Save game to history before resetting
+    const snap=await db.ref('rooms/'+roomCode).once('value');
+    if(snap.exists()){
+      const r=snap.val();
+      if(r.finalScores){
+        const histEntry={
+          game:r.game||'trivia',
+          scores:r.finalScores,
+          ts:Date.now()
+        };
+        await db.ref('rooms/'+roomCode+'/history').push(histEntry);
+      }
+    }
     const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
     await db.ref('rooms/'+roomCode).update({
       status:'lobby',triviaAnswers:null,triviaIndex:0,
-      drawCanvas:null,finalScores:null,chat:null,players:ps
+      drawCanvas:null,finalScores:null,chat:null,players:ps,
+      status_trivia:null,summaryIndex:null
     });
   }
 };
