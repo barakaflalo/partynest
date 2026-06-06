@@ -1590,6 +1590,8 @@ window.joinRoom=async function(){
 // ===== LEAVE =====
 window.leaveRoom=async function(){
   clearAllTimers();
+  // Clear frog listener
+  if(window._frogActiveRef){window._frogActiveRef.off('value');window._frogActiveRef=null;}
   localStorage.removeItem('pn_name');localStorage.removeItem('pn_id');localStorage.removeItem('pn_room');localStorage.removeItem('pn_host');
   if(roomRef){roomRef.off('value');roomRef=null;}
   if(isHost)await db.ref('rooms/'+roomCode).remove();
@@ -3546,6 +3548,17 @@ function loadFrog(room){
   renderFrogSidebar(room.frogPlayers||{});
   renderHostControls('frogHostControls',
     isHost?'<button class="host-ctrl-btn danger" onclick="confirmEndGame()">End Game</button>':'');
+  
+  // Add live listener for frogActive changes (so all players see frogs in real-time)
+  if(!window._frogActiveRef){
+    window._frogActiveRef=db.ref('rooms/'+roomCode+'/frogActive');
+    window._frogActiveRef.on('value',function(snap){
+      if(!snap)return;
+      db.ref('rooms/'+roomCode+'/frogPlayers').once('value').then(function(ps){
+        renderFrogBoard(snap.val()||{},ps.val()||{});
+      });
+    });
+  }
 }
 
 function renderFrogBoard(active,players){
@@ -3623,28 +3636,37 @@ window.catchSpecificFrog=async function(fid,ownerPid,frogType){
     // Player eliminated!
     updates['frogPlayers/'+ownerPid+'/alive']=false;
     var ownerName=ownerData.name||'?';
-    db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'💥 '+ownerName+' is eliminated!',ts:Date.now()});
+    await db.ref('rooms/'+roomCode).update(updates);
+    db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'💥 '+ownerName+' is eliminated! 🐸',ts:Date.now()});
     playSound('correct');
-    // Check if only 1 player left
-    var aliveCount=Object.values(room.frogPlayers||{}).filter(function(p){return p.alive!==false;}).length;
-    if(aliveCount<=2){
-      // Only winner left
-      setTimeout(async function(){
-        var finalSnap=await db.ref('rooms/'+roomCode).once('value');
-        if(!finalSnap.exists())return;
-        var fr=finalSnap.val();
-        var stillAlive=Object.entries(fr.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
-        if(stillAlive.length<=1){
-          var fs={};Object.entries(fr.frogPlayers||{}).forEach(function(e){fs[e[0]]=e[1].score||0;});
-          if(stillAlive.length===1)fs[stillAlive[0][0]]=(fs[stillAlive[0][0]]||0)+500;
-          db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+    // Check alive players AFTER update
+    setTimeout(async function(){
+      var finalSnap=await db.ref('rooms/'+roomCode).once('value');
+      if(!finalSnap.exists())return;
+      var fr=finalSnap.val();
+      var stillAlive=Object.entries(fr.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
+      if(stillAlive.length<=1){
+        var winnerEntry=stillAlive[0];
+        var fs={};
+        Object.entries(fr.frogPlayers||{}).forEach(function(e){fs[e[0]]=e[1].score||0;});
+        if(winnerEntry){
+          var winnerId=winnerEntry[0];
+          var winnerName2=(scores[winnerId]||{name:'?'}).name;
+          fs[winnerId]=(fs[winnerId]||0)+500;
+          db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'🏆 '+winnerName2+' wins the Frog Catcher!',ts:Date.now()});
         }
-      },1500);
-    }
+        setTimeout(function(){
+          db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+        },2500);
+      }
+    },800);
+    return; // Already did the update above
   } else {
     playSound('wrong');
   }
-  await db.ref('rooms/'+roomCode).update(updates);
+  if(newFrogCount>0){
+    await db.ref('rooms/'+roomCode).update(updates);
+  }
 };
 
 function renderFrogSidebar(players){
