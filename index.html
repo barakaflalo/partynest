@@ -2,6 +2,17 @@
 <html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
+<link rel="manifest" href="/partynest/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PartyNest">
+<meta name="theme-color" content="#C9A84C">
+<link rel="apple-touch-icon" href="/partynest/icon-180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/partynest/icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/partynest/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/partynest/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/partynest/icon-512.png">
 <meta name="description" content="PartyNest — Multiplayer party games. Join with a 4-digit code. Trivia, Forbidden Word, Drawing.">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -875,6 +886,7 @@ const T = {
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
     history:'Game History',
     howToPlay:'How to play',
+    installApp:'Add to home screen',
     whoamiSettingsTitle:'🃏 WHO AM I SETTINGS',
     maxGuessesLabel:'Max guesses before reveal:',
     identitySourceLabel:'Identity source:',
@@ -953,6 +965,7 @@ const T = {
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
     history:'היסטוריית משחקים',
     howToPlay:'איך משחקים',
+    installApp:'הוסף למסך הבית',
     whoamiSettingsTitle:'🃏 הגדרות מי אני',
     maxGuessesLabel:'ניסיונות מקסימום לפני גילוי:',
     identitySourceLabel:'מקור הזהויות:',
@@ -1025,6 +1038,7 @@ const T = {
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
     history:'История игр',
     howToPlay:'Как играть',
+    installApp:'Добавить на экран',
     whoamiSettingsTitle:'🃏 НАСТРОЙКИ КТО Я',
     maxGuessesLabel:'Максимум попыток до раскрытия:',
     identitySourceLabel:'Источник личностей:',
@@ -1097,6 +1111,7 @@ const T = {
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
     history:'Historial',
     howToPlay:'Como jugar',
+    installApp:'Agregar a inicio',
     whoamiSettingsTitle:'🃏 AJUSTES QUIEN SOY',
     maxGuessesLabel:'Max intentos antes de revelar:',
     identitySourceLabel:'Fuente de identidades:',
@@ -1169,6 +1184,7 @@ const T = {
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
     history:'سجل الألعاب',
     howToPlay:'كيف تلعب',
+    installApp:'اضف للشاشة الرئيسية',
     whoamiSettingsTitle:'🃏 اعدادات من انا',
     maxGuessesLabel:'اقصى محاولات قبل الكشف:',
     identitySourceLabel:'مصدر الهويات:',
@@ -1459,6 +1475,7 @@ function applyT(){
   _st('txt-wyrModeWYR',t('wyrModeWYR'));
   _st('txt-wyrModeMyList',t('wyrModeMyList'));
   _st('txt-startWithAll',t('startWithAll'));
+  _st('txt-installApp',t('installApp'));
   // Who Am I settings labels
   _st('txt-whoamiSettingsSpan',t('whoamiSettingsTitle'));
   _st('txt-maxGuessesLabel',t('maxGuessesLabel'));
@@ -1522,6 +1539,16 @@ let drawCtx=null;
 let drawColor='#E8E0D0',drawSize=4,drawIsDrawing=false;
 
 // ===== NAVIGATION =====
+window.installPWA=function(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(r){
+      deferredPrompt=null;
+      document.getElementById('pwaInstallBtn').style.display='none';
+    });
+  }
+};
+
 window.goTo=function(s){
   document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));
   document.getElementById(s+'Screen').classList.add('active');
