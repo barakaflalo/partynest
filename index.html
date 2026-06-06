@@ -25,6 +25,454 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
 
+
+// ============================================================
+// ===== RACE GAME ============================================
+// ============================================================
+
+// Track definition - oval path as array of {x,y} waypoints (% of canvas)
+var TRACK_WAYPOINTS = [
+  {x:0.50, y:0.12}, // top center
+  {x:0.78, y:0.15},
+  {x:0.90, y:0.30},
+  {x:0.90, y:0.50},
+  {x:0.90, y:0.70},
+  {x:0.78, y:0.85},
+  {x:0.50, y:0.88}, // bottom center
+  {x:0.22, y:0.85},
+  {x:0.10, y:0.70},
+  {x:0.10, y:0.50},
+  {x:0.10, y:0.30},
+  {x:0.22, y:0.15},
+];
+var TRACK_WIDTH = 0.12; // % of canvas width
+var TOTAL_LAPS = 3;
+var PLAYER_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
+var CAR_EMOJIS = ['🏎️','🚗','🚕','🚙','🚓','🚑'];
+
+// Race state (local)
+var raceAnimFrame = null;
+var raceLastUpdate = 0;
+var raceCanvasW = 400;
+var raceCanvasH = 300;
+
+// Get point along track (0-1 = full lap)
+function raceGetTrackPoint(progress) {
+  var pts = TRACK_WAYPOINTS;
+  var n = pts.length;
+  var t = ((progress % 1) + 1) % 1;
+  var idx = Math.floor(t * n);
+  var next = (idx + 1) % n;
+  var frac = (t * n) - idx;
+  return {
+    x: pts[idx].x + (pts[next].x - pts[idx].x) * frac,
+    y: pts[idx].y + (pts[next].y - pts[idx].y) * frac
+  };
+}
+
+function raceGetAngle(progress) {
+  var p1 = raceGetTrackPoint(progress);
+  var p2 = raceGetTrackPoint(progress + 0.01);
+  return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+}
+
+function initRace() {
+  var players = Object.keys(scores);
+  var racePlayers = {};
+  players.forEach(function(id, i) {
+    racePlayers[id] = {
+      name: (scores[id]||{name:'?'}).name,
+      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+      car: CAR_EMOJIS[i % CAR_EMOJIS.length],
+      progress: i * 0.02, // stagger start
+      speed: 0,
+      lap: 0,
+      finished: false,
+      finishTime: 0,
+      score: 0
+    };
+  });
+  db.ref('rooms/'+roomCode).update({
+    status: 'race',
+    racePlayers: racePlayers,
+    raceState: 'countdown',
+    raceStart: Date.now() + 4000, // 4s countdown
+    raceLaps: TOTAL_LAPS,
+    chat: null
+  });
+  systemMsg('🏎️ Race started!');
+}
+
+function loadRace(room) {
+  if(!room.racePlayers) return;
+  showScreen('race');
+  document.getElementById('raceCode').textContent = roomCode;
+  
+  // Setup canvas
+  var canvas = document.getElementById('raceCanvas');
+  raceCanvasW = Math.min(500, window.innerWidth - 24);
+  raceCanvasH = Math.round(raceCanvasW * 0.7);
+  canvas.width = raceCanvasW;
+  canvas.height = raceCanvasH;
+  canvas.style.height = raceCanvasH + 'px';
+  
+  // Show/hide countdown
+  var cdEl = document.getElementById('raceCountdown');
+  var finEl = document.getElementById('raceFinished');
+  var gasBtn = document.getElementById('raceGasBtn');
+  
+  if(room.raceState === 'countdown') {
+    cdEl.style.display = 'flex';
+    finEl.style.display = 'none';
+    gasBtn.disabled = true;
+    gasBtn.style.opacity = '0.5';
+  } else if(room.raceState === 'racing') {
+    cdEl.style.display = 'none';
+    finEl.style.display = 'none';
+    gasBtn.disabled = false;
+    gasBtn.style.opacity = '1';
+  } else if(room.raceState === 'finished') {
+    cdEl.style.display = 'none';
+    finEl.style.display = 'flex';
+    gasBtn.disabled = true;
+    gasBtn.style.opacity = '0.5';
+    showRaceResults(room);
+  }
+  
+  // Update lap/position display
+  var myData = room.racePlayers[myId] || {};
+  var lap = myData.lap || 0;
+  document.getElementById('raceLapInfo').textContent = 'Lap ' + Math.min(lap+1, TOTAL_LAPS) + '/' + TOTAL_LAPS;
+  
+  // Position
+  var sorted = Object.entries(room.racePlayers).sort(function(a,b) {
+    if(b[1].lap !== a[1].lap) return b[1].lap - a[1].lap;
+    return b[1].progress - a[1].progress;
+  });
+  var myPos = sorted.findIndex(function(e){return e[0]===myId;}) + 1;
+  document.getElementById('raceMyPos').textContent = myPos + '/' + sorted.length;
+  
+  // Position badges
+  var posDiv = document.getElementById('racePositions');
+  if(posDiv) {
+    var medals = ['🥇','🥈','🥉'];
+    posDiv.innerHTML = sorted.map(function(e, i) {
+      var p = e[1];
+      return '<div class="race-pos-badge" style="background:'+p.color+'22;border:1px solid '+p.color+';color:'+p.color+'">'+
+        (medals[i]||('#'+(i+1)))+' '+p.name+
+      '</div>';
+    }).join('');
+  }
+  
+  // Host controls
+  renderHostControls('raceHostControls',
+    isHost ? '<button class="host-ctrl-btn primary" onclick="restartRace()">🔄 New Race</button>' : '');
+  
+  // Start animation loop
+  if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+  raceLoop(room);
+}
+
+function raceLoop(initialRoom) {
+  var lastRoom = initialRoom;
+  
+  function tick() {
+    var now = Date.now();
+    
+    // Countdown logic
+    if(lastRoom.raceState === 'countdown') {
+      var remaining = Math.ceil((lastRoom.raceStart - now) / 1000);
+      var cdEl = document.getElementById('raceCountdownNum');
+      if(cdEl) {
+        if(remaining > 0) {
+          cdEl.textContent = remaining;
+        } else {
+          cdEl.textContent = 'GO! 🏁';
+          // Enable gas after countdown
+          var gb = document.getElementById('raceGasBtn');
+          if(gb) { gb.disabled = false; gb.style.opacity = '1'; }
+        }
+      }
+    }
+    
+    // Timer
+    if(lastRoom.raceState === 'racing' && lastRoom.raceStart) {
+      var elapsed = Math.floor((now - lastRoom.raceStart) / 1000);
+      var mins = Math.floor(elapsed / 60);
+      var secs = elapsed % 60;
+      var timerEl = document.getElementById('raceTimer');
+      if(timerEl) timerEl.textContent = mins + ':' + ('0'+secs).slice(-2);
+    }
+    
+    // Draw
+    drawRaceTrack(lastRoom);
+    
+    if(lastRoom.raceState !== 'finished') {
+      raceAnimFrame = requestAnimationFrame(tick);
+    }
+  }
+  
+  // Listen for room updates
+  db.ref('rooms/'+roomCode).on('value', function(snap) {
+    if(!snap.exists()) return;
+    var room = snap.val();
+    if(room.status !== 'race') {
+      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+      db.ref('rooms/'+roomCode).off('value');
+      return;
+    }
+    lastRoom = room;
+    
+    // Check state changes
+    if(room.raceState === 'finished') {
+      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+      showRaceResults(room);
+    }
+  });
+  
+  tick();
+}
+
+function drawRaceTrack(room) {
+  var canvas = document.getElementById('raceCanvas');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W = raceCanvasW, H = raceCanvasH;
+  
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+  
+  // Background
+  ctx.fillStyle = '#0F1A0F';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Draw track (outer path)
+  var trackW = TRACK_WIDTH * W;
+  
+  // Draw track surface
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = trackW;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  var pts = TRACK_WAYPOINTS;
+  var p0 = raceGetTrackPoint(0);
+  ctx.moveTo(p0.x * W, p0.y * H);
+  for(var i = 1; i <= pts.length; i++) {
+    var p = raceGetTrackPoint(i / pts.length);
+    ctx.lineTo(p.x * W, p.y * H);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  
+  // Track center line (dashed)
+  ctx.strokeStyle = '#FFD70033';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 15]);
+  ctx.beginPath();
+  var pc0 = raceGetTrackPoint(0);
+  ctx.moveTo(pc0.x * W, pc0.y * H);
+  for(var j = 1; j <= pts.length * 2; j++) {
+    var pc = raceGetTrackPoint(j / (pts.length * 2));
+    ctx.lineTo(pc.x * W, pc.y * H);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Start/Finish line
+  var sfPt = raceGetTrackPoint(0);
+  var sfAngle = raceGetAngle(0) + Math.PI/2;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(
+    sfPt.x * W - Math.cos(sfAngle) * trackW/2,
+    sfPt.y * H - Math.sin(sfAngle) * trackW/2
+  );
+  ctx.lineTo(
+    sfPt.x * W + Math.cos(sfAngle) * trackW/2,
+    sfPt.y * H + Math.sin(sfAngle) * trackW/2
+  );
+  ctx.stroke();
+  
+  // Draw cars
+  var racePlayers = room.racePlayers || {};
+  Object.entries(racePlayers).forEach(function(entry) {
+    var pid = entry[0], p = entry[1];
+    var pt = raceGetTrackPoint(p.progress % 1);
+    var angle = raceGetAngle(p.progress % 1);
+    var x = pt.x * W, y = pt.y * H;
+    var isMe = pid === myId;
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    // Car shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(-14, -7, 28, 14);
+    
+    // Car body
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.roundRect(-12, -6, 24, 12, 4);
+    ctx.fill();
+    
+    // Windshield
+    ctx.fillStyle = 'rgba(200,230,255,0.6)';
+    ctx.fillRect(-2, -5, 8, 10);
+    
+    // Wheels
+    ctx.fillStyle = '#222';
+    [[-10,-7],[-10,7],[8,-7],[8,7]].forEach(function(w) {
+      ctx.fillRect(w[0]-3, w[1]-2, 6, 4);
+    });
+    
+    // My car indicator (glow)
+    if(isMe) {
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-14, -8, 28, 16, 5);
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+    
+    // Name label
+    ctx.fillStyle = isMe ? '#FFF' : p.color;
+    ctx.font = (isMe ? 'bold ' : '') + '10px Heebo, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name.slice(0,8), x, y - 14);
+  });
+}
+
+window.raceGas = async function() {
+  if(raceLastUpdate && Date.now() - raceLastUpdate < 50) return; // throttle
+  raceLastUpdate = Date.now();
+  
+  var snap = await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists()) return;
+  var room = snap.val();
+  
+  if(room.raceState === 'countdown') {
+    var now = Date.now();
+    if(now < room.raceStart) return; // not started yet
+  }
+  if(room.raceState === 'finished') return;
+  
+  var myData = room.racePlayers && room.racePlayers[myId];
+  if(!myData || myData.finished) return;
+  
+  // If countdown done, switch to racing
+  if(room.raceState === 'countdown' && Date.now() >= room.raceStart) {
+    await db.ref('rooms/'+roomCode+'/raceState').set('racing');
+  }
+  
+  // Accelerate - each tap moves forward
+  var boost = 0.004 + Math.random() * 0.002; // slight randomness
+  var newProgress = (myData.progress || 0) + boost;
+  var newLap = myData.lap || 0;
+  
+  // Check lap completion
+  if(Math.floor(newProgress) > Math.floor(myData.progress || 0)) {
+    newLap = newLap + 1;
+    if(newLap >= TOTAL_LAPS) {
+      // Finished!
+      var finishTime = Date.now() - (room.raceStart || Date.now());
+      var pts = Math.max(100, 1000 - Object.values(room.racePlayers||{}).filter(function(p){return p.finished;}).length * 200);
+      await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
+        progress: newProgress, lap: TOTAL_LAPS,
+        finished: true, finishTime: finishTime, score: pts
+      });
+      playSound('correct');
+      // Check if all finished
+      if(isHost) setTimeout(checkRaceEnd, 1000);
+      return;
+    }
+    playSound('start');
+  }
+  
+  await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
+    progress: newProgress, lap: newLap
+  });
+};
+
+async function checkRaceEnd() {
+  var snap = await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists()) return;
+  var room = snap.val();
+  var players = Object.values(room.racePlayers||{});
+  var allDone = players.every(function(p){return p.finished;});
+  var anyDone = players.some(function(p){return p.finished;});
+  // End if all done OR if first finisher has been done for 30s
+  if(allDone || (anyDone && players.filter(function(p){return p.finished;}).length === players.length - 1)) {
+    var fs = {};
+    Object.entries(room.racePlayers||{}).forEach(function(e){ fs[e[0]] = e[1].score || 0; });
+    await db.ref('rooms/'+roomCode).update({raceState:'finished', status:'results', finalScores: fs});
+  }
+}
+
+function showRaceResults(room) {
+  var finEl = document.getElementById('raceFinished');
+  var winnerEl = document.getElementById('raceWinnerText');
+  var resultsList = document.getElementById('raceResultsList');
+  if(!finEl) return;
+  finEl.style.display = 'flex';
+  var sorted = Object.entries(room.racePlayers||{}).sort(function(a,b){
+    if(a[1].finished && b[1].finished) return a[1].finishTime - b[1].finishTime;
+    if(a[1].finished) return -1;
+    if(b[1].finished) return 1;
+    return b[1].progress - a[1].progress;
+  });
+  var medals = ['🥇','🥈','🥉'];
+  if(winnerEl && sorted[0]) winnerEl.textContent = medals[0]+' '+(sorted[0][1].name||'?')+' wins!';
+  if(resultsList) {
+    resultsList.innerHTML = sorted.map(function(e,i){
+      var p = e[1];
+      var t = p.finishTime ? Math.floor(p.finishTime/1000)+'s' : 'DNF';
+      return (medals[i]||'#'+(i+1))+' '+p.name+' — '+t;
+    }).join('<br>');
+  }
+}
+
+window.restartRace = function() {
+  if(!isHost) return;
+  db.ref('rooms/'+roomCode).update({status:'lobby'});
+};
+
+// Add race guide
+var _origShowGameGuide = showGameGuide;
+showGameGuide = function(game) {
+  if(game === 'race') {
+    var info = {
+      en: {title:'🏎️ Race!', steps:[
+        'Everyone sees the same oval track',
+        'Press GAS as fast as you can to move forward!',
+        'Complete '+TOTAL_LAPS+' laps before everyone else',
+        'First to cross the finish line wins!',
+        'Tap faster = go faster!'
+      ]},
+      he: {title:'🏎️ מירוץ!', steps:[
+        'כולם רואים את אותו מסלול',
+        'לחץ גז כמה שיותר מהר כדי להתקדם!',
+        'השלם '+TOTAL_LAPS+' סיבובים לפני כולם',
+        'הראשון לחצות את קו הסיום מנצח!',
+        'לחיצות מהירות יותר = נסיעה מהירה יותר!'
+      ]}
+    };
+    var i = info[lang] || info.en;
+    document.getElementById('guideModalTitle').textContent = i.title;
+    document.getElementById('guideContent').innerHTML = i.steps.map(function(s,idx){
+      return '<div class="guide-step"><div class="guide-icon" style="font-size:1.2rem;min-width:24px;text-align:center;">'+(idx+1)+'</div><div><div class="guide-step-desc">'+s+'</div></div></div>';
+    }).join('');
+    document.getElementById('guideModal').style.display='flex';
+    return;
+  }
+  _origShowGameGuide(game);
+};
+
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -355,6 +803,15 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
 .fastest-buzz{width:100%;padding:20px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));border:none;border-radius:14px;color:#0A0A0A;font-size:1.3rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:12px;}
 .fastest-buzzed{text-align:center;font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);padding:14px;}
 
+
+/* ===== RACE GAME ===== */
+#raceGasBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #881111; }
+.race-pos-badge {
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 10px;border-radius:8px;font-size:0.78rem;font-weight:700;
+  font-family:'Heebo',sans-serif;
+}
+
 </style>
 </head>
 <body>
@@ -495,6 +952,11 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
           <span class="game-opt-icon">🐸</span>
           <span class="game-opt-name" id="gn-frog">Frog Catcher</span>
           <button onclick="event.stopPropagation();openGuide('frog')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('race')" id="go-race">
+          <span class="game-opt-icon">🏎️</span>
+          <span class="game-opt-name" id="gn-race">Race!</span>
+          <button onclick="event.stopPropagation();openGuide('race')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
         </div>
       </div>
       <!-- WHO AM I SETUP - shown when whoami selected -->
@@ -826,6 +1288,99 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
   </div>
 </div>
 <script>
+
+// ============================================================
+// ===== BETA PROTECTION =====================================
+// ============================================================
+(function(){
+  var BETA_KEY = 'ba4780';        // ← הקוד הסודי
+  var EXPIRY   = '2026-07-31';           // ← תאריך פג תוקף
+  
+  var now = new Date();
+  var exp = new Date(EXPIRY);
+  
+  // Check expiry first
+  if(now > exp){
+    document.body.innerHTML = 
+      '<div style="min-height:100vh;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Heebo,sans-serif;text-align:center;padding:30px;">'+
+      '<div style="font-size:4rem;margin-bottom:20px;">🎉</div>'+
+      '<div style="font-family:Cinzel,serif;font-size:2rem;color:#C9A84C;margin-bottom:12px;">PARTYNEST</div>'+
+      '<div style="color:#888;font-size:1rem;margin-bottom:8px;">גרסת הבטא הסתיימה</div>'+
+      '<div style="color:#555;font-size:0.85rem;">האפליקציה עוברת שדרוג — נחזור בקרוב!</div>'+
+      '</div>';
+    document.title = 'PartyNest — Coming Soon';
+    return;
+  }
+  
+  // Check key from URL or localStorage
+  var params = new URLSearchParams(window.location.search);
+  var keyFromUrl = params.get('k');
+  var keyFromStorage = localStorage.getItem('pn_beta_key');
+  
+  if(keyFromUrl === BETA_KEY){
+    // Valid key from URL - save it
+    localStorage.setItem('pn_beta_key', BETA_KEY);
+    // Clean URL (remove key from address bar)
+    var cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+    return; // Access granted
+  }
+  
+  if(keyFromStorage === BETA_KEY){
+    return; // Already authenticated
+  }
+  
+  // No valid key - show input form
+  document.body.innerHTML = 
+    '<div style="min-height:100vh;background:#0A0A0A;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Heebo,sans-serif;text-align:center;padding:30px;">'+
+    '<div style="font-size:3.5rem;margin-bottom:16px;">🎉</div>'+
+    '<div style="font-family:Cinzel,serif;font-size:2rem;color:#C9A84C;margin-bottom:6px;letter-spacing:3px;">PARTYNEST</div>'+
+    '<div style="color:#666;font-size:0.8rem;letter-spacing:4px;margin-bottom:32px;">BETA</div>'+
+    '<div style="background:#161616;border:1px solid #333;border-radius:16px;padding:28px 32px;max-width:320px;width:100%;">'+
+      '<div style="color:#999;font-size:0.85rem;margin-bottom:16px;">הכנס קוד גישה</div>'+
+      '<input id="betaKeyInput" type="text" placeholder="קוד גישה..." '+
+        'style="width:100%;padding:12px 16px;background:#0D0D0D;border:2px solid #333;border-radius:10px;'+
+        'color:#FFF;font-size:1rem;font-family:Heebo,sans-serif;text-align:center;letter-spacing:3px;'+
+        'outline:none;box-sizing:border-box;margin-bottom:12px;"'+
+
+      '<button onclick="checkBetaKey()" '+
+        'style="width:100%;padding:12px;background:linear-gradient(135deg,#B8942A,#C9A84C);'+
+        'border:none;border-radius:10px;color:#0A0A0A;font-size:1rem;font-weight:700;'+
+        'font-family:Heebo,sans-serif;cursor:pointer;letter-spacing:1px;">'+
+        '🔓 כניסה'+
+      '</button>'+
+      '<div id="betaErr" style="color:#E05050;font-size:0.8rem;margin-top:10px;min-height:20px;"></div>'+
+    '</div>'+
+    '<div style="color:#444;font-size:0.72rem;margin-top:24px;">גרסת בטא — לקבלת גישה פנה למפתח</div>'+
+    '</div>';
+  document.title = 'PartyNest — Beta';
+  
+  // Focus input after render
+  setTimeout(function(){
+    var inp = document.getElementById('betaKeyInput');
+    if(inp) inp.focus();
+  }, 100);
+})();
+
+window.checkBetaKey = function(){
+  var inp = document.getElementById('betaKeyInput');
+  var err = document.getElementById('betaErr');
+  if(!inp) return;
+  var val = inp.value.trim();
+  if(val === 'ba4780'){
+    localStorage.setItem('pn_beta_key', 'ba4780');
+    window.location.reload();
+  } else {
+    if(err) err.textContent = '❌ קוד שגוי — נסה שוב';
+    inp.style.borderColor = '#E05050';
+    inp.value = '';
+    setTimeout(function(){ 
+      inp.style.borderColor = '#333';
+      if(err) err.textContent = '';
+    }, 2000);
+  }
+};
+
 // DEBUG localStorage persistence
 try {
   var _test = localStorage.getItem('pn_test');
@@ -909,7 +1464,10 @@ const T = {
     vote:'Vote',
     voteAsk:'Ask a question:',
     wyrHostTitle:'CREATE A QUESTION',wyrCustom:'Custom',wyrPickQ:'Pick a question:',whoami:'Who Am I',bomb:'Throw the Bomb!',
-    frog:'Frog Catcher',wyr:'The Big Poll',
+    frog:'Frog Catcher',
+    race:'Race!',
+    getReady:'Get ready!',
+    gasBtn:'🔥 GAS!',wyr:'The Big Poll',
     simon:'Simon Says',anagram:'Anagram',complete:'Finish the Sentence',number:'Guess My Number',fastest:'Fastest Finger',
     broadcastPlaceholder:'Type message...',
     settingsTitle:'⚙️ Room Settings',
@@ -988,7 +1546,10 @@ const T = {
     vote:'הצבעה',
     voteAsk:'שאל שאלה:',
     wyrHostTitle:'צור שאלה',wyrCustom:'מותאם אישית',wyrPickQ:'בחר שאלה:',whoami:'מי אני',bomb:'זרוק פצצה!',
-    frog:'תפוס צפרדע',wyr:'הסקר הגדול',
+    frog:'תפוס צפרדע',
+    race:'מירוץ!',
+    getReady:'!התכוננו',
+    gasBtn:'🔥 !גז',wyr:'הסקר הגדול',
     simon:'סיימון אומר',anagram:'אנגרמות',complete:'השלם המשפט',number:'נחש את המספר',fastest:'מי הכי מהיר',
     broadcastPlaceholder:'כתוב הודעה...',
     settingsTitle:'⚙️ הגדרות חדר',
@@ -1061,7 +1622,10 @@ const T = {
     vote:'Голосование',
     voteAsk:'Задай вопрос:',
     wyrHostTitle:'СОЗДАТЬ ВОПРОС',wyrCustom:'Свой',wyrPickQ:'Выбери вопрос:',whoami:'Кто я',bomb:'Брось бомбу!',
-    frog:'Поймай лягушку',wyr:'Большой опрос',
+    frog:'Поймай лягушку',
+    race:'Гонка!',
+    getReady:'Приготовьтесь!',
+    gasBtn:'🔥 ГАЗ!',wyr:'Большой опрос',
     simon:'Саймон говорит',anagram:'Анаграмма',complete:'Закончи фразу',number:'Угадай число',fastest:'Самый быстрый',
     broadcastPlaceholder:'Введи сообщение...',
     settingsTitle:'⚙️ Настройки',
@@ -1134,7 +1698,10 @@ const T = {
     vote:'Votacion',
     voteAsk:'Haz una pregunta:',
     wyrHostTitle:'CREAR PREGUNTA',wyrCustom:'Propio',wyrPickQ:'Elige pregunta:',whoami:'Quien soy',bomb:'Lanza la bomba!',
-    frog:'Atrapa la rana',wyr:'La gran encuesta',
+    frog:'Atrapa la rana',
+    race:'Carrera!',
+    getReady:'Preparense!',
+    gasBtn:'🔥 GAS!',wyr:'La gran encuesta',
     simon:'Simon dice',anagram:'Anagrama',complete:'Termina la frase',number:'Adivina el numero',fastest:'Mas rapido',
     broadcastPlaceholder:'Escribe mensaje...',
     settingsTitle:'⚙️ Configuracion',
@@ -1207,7 +1774,10 @@ const T = {
     vote:'تصويت',
     voteAsk:'اسأل سؤالاً:',
     wyrHostTitle:'انشئ سؤالاً',wyrCustom:'مخصص',wyrPickQ:'اختر سؤالاً:',whoami:'من انا',bomb:'ارمِ القنبلة!',
-    frog:'امسك الضفدع',wyr:'ماذا تفضل',
+    frog:'امسك الضفدع',
+    race:'سباق!',
+    getReady:'!استعدوا',
+    gasBtn:'🔥 !غاز',wyr:'ماذا تفضل',
     simon:'سايمون يقول',anagram:'انغرام',complete:'اكمل الجملة',number:'خمن الرقم',fastest:'الاسرع',
     broadcastPlaceholder:'اكتب رسالة...',
     settingsTitle:'⚙️ اعدادات',
@@ -1458,7 +2028,7 @@ function applyT(){
   _st('txt-noLimit',t('noLimit'));
   // Game names
   var gameNames={trivia:t('trivia'),forbidden:t('forbidden'),
-    whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr'),frog:t('frog')};
+    whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr'),frog:t('frog'),race:t('race')};
   Object.keys(gameNames).forEach(function(k){
     var el=document.getElementById('gn-'+k);if(el)el.textContent=gameNames[k];
     // Update guide button text
@@ -1825,7 +2395,8 @@ function handleCountdown(room){
         whoami:initWhoami,
         bomb:initBomb,
         wyr:initWyr,
-        frog:initFrog
+        frog:initFrog,
+        race:initRace
       };
       if(initMap[selectedGame]) initMap[selectedGame]();
     }
@@ -1884,6 +2455,7 @@ function listenRoom(){
     else if(room.status==='bomb')loadBomb(room);
     else if(room.status==='wyr')loadWyr(room);
     else if(room.status==='frog')loadFrog(room);
+    else if(room.status==='race')loadRace(room);
     else if(room.status==='results')showResults(room);
   });
   
@@ -4286,6 +4858,68 @@ loadFrog=function(room){
       <div id="frogSidebarScores"></div>
       <div id="frogHostControls"></div>
     </div>
+  </div>
+</div>
+
+
+<!-- RACE SCREEN -->
+<div class="screen" id="raceScreen">
+  <div class="app-header">
+    <div class="header-logo">🏎️ <span id="txt-race-h">Race!</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="raceCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row">
+    <button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button>
+    <div class="float-divider"></div>
+    <button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button>
+    <button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button>
+  </div></div>
+
+  <div style="padding:8px 12px;">
+    <!-- Race info bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div id="raceLapInfo" style="font-family:'Cinzel',serif;font-size:0.9rem;color:var(--gold);">Lap 0/3</div>
+      <div id="raceMyPos" style="font-size:0.85rem;color:var(--text-dim);">Position: -</div>
+      <div id="raceTimer" style="font-family:'Cinzel',serif;font-size:0.9rem;color:var(--gold);">0:00</div>
+    </div>
+
+    <!-- TRACK CANVAS -->
+    <div style="position:relative;background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;overflow:hidden;margin-bottom:10px;">
+      <canvas id="raceCanvas" style="display:block;width:100%;"></canvas>
+      <!-- Countdown overlay -->
+      <div id="raceCountdown" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
+        <div id="raceCountdownNum" style="font-family:'Cinzel',serif;font-size:5rem;color:var(--gold);"></div>
+        <div style="font-size:0.85rem;color:var(--text-dim);" id="txt-getReady">Get ready!</div>
+      </div>
+      <!-- Finished overlay -->
+      <div id="raceFinished" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
+        <div style="font-size:2rem;">🏁</div>
+        <div id="raceWinnerText" style="font-family:'Cinzel',serif;font-size:1.3rem;color:var(--gold);"></div>
+        <div id="raceResultsList" style="font-size:0.85rem;color:var(--text-dim);text-align:center;"></div>
+      </div>
+    </div>
+
+    <!-- GAS PEDAL -->
+    <button id="raceGasBtn" onclick="raceGas()"
+      style="width:100%;padding:20px;background:linear-gradient(135deg,#CC3333,#FF5555);
+             border:none;border-radius:16px;color:#FFF;font-size:1.4rem;font-weight:700;
+             font-family:'Heebo',sans-serif;cursor:pointer;user-select:none;
+             -webkit-user-select:none;touch-action:manipulation;
+             box-shadow:0 4px 0 #881111;active:transform:translateY(2px);"
+      id="txt-gasBtn">
+      🔥 GAS!
+    </button>
+
+    <!-- Position list -->
+    <div id="racePositions" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Host controls -->
+  <div style="padding:0 12px 12px;">
+    <div id="raceHostControls"></div>
   </div>
 </div>
 
