@@ -227,6 +227,26 @@ body.rtl .home-top-btns{right:auto;left:14px;}
 /* PODIUM always LTR */
 .podium-wrap{direction:ltr;}
 
+
+/* ===== FLOATING SETTINGS BAR ===== */
+.float-settings{position:fixed;bottom:16px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:500;}
+body.rtl .float-settings{right:auto;left:16px;}
+.float-settings-row{display:flex;gap:6px;align-items:center;background:var(--dark);border:1px solid var(--gold-dim);border-radius:20px;padding:5px 10px;box-shadow:0 4px 16px rgba(0,0,0,0.4);}
+.float-lang-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;opacity:0.6;transition:all 0.15s;padding:2px 4px;border-radius:6px;}
+.float-lang-btn:hover,.float-lang-btn.active{opacity:1;background:var(--dark3);}
+.float-lang-btn.active{outline:2px solid var(--gold-dim);}
+.float-theme-btn{background:none;border:none;cursor:pointer;font-size:1.1rem;padding:2px 6px;border-radius:6px;color:var(--text-dim);}
+.float-theme-btn:hover{color:var(--gold);}
+.float-divider{width:1px;height:20px;background:var(--dark3);}
+
+/* ===== COLOR THEMES ===== */
+body.theme-blue{--gold:#5B9BD5;--gold-dim:#3A6A9A;--gold-light:#7BB8F0;}
+body.theme-green{--gold:#4CAF7A;--gold-dim:#2E7A50;--gold-light:#70D49A;}
+body.theme-purple{--gold:#9B59B6;--gold-dim:#6C3483;--gold-light:#BB80D4;}
+body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
+.color-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:all 0.15s;}
+.color-dot:hover,.color-dot.active{border-color:#FFF;transform:scale(1.15);}
+
 </style>
 </head>
 <body>
@@ -742,8 +762,13 @@ function t(k){return(T[lang]||T.en)[k]||(T.en[k])||k;}
 window.setLang=function(l,btn){
   lang=l;
   localStorage.setItem('pn_lang',l);
+  // Update home lang pills
   document.querySelectorAll('.lang-pill').forEach(function(b){b.classList.remove('active');});
-  if(btn)btn.classList.add('active');
+  if(btn&&btn.classList.contains('lang-pill'))btn.classList.add('active');
+  // Update floating lang buttons
+  document.querySelectorAll('.float-lang-btn').forEach(function(b){
+    b.classList.toggle('active',b.dataset.lang===l);
+  });
   var rtl=['he','ar'].includes(l);
   document.documentElement.lang=l;
   document.documentElement.dir=rtl?'rtl':'ltr';
@@ -751,13 +776,25 @@ window.setLang=function(l,btn){
   applyT();
 };
 
+// ===== COLOR THEME =====
+var currentColorTheme='gold';
+window.setColorTheme=function(theme,dot){
+  currentColorTheme=theme;
+  document.body.classList.remove('theme-blue','theme-green','theme-purple','theme-red');
+  if(theme!=='gold')document.body.classList.add('theme-'+theme);
+  document.querySelectorAll('.color-dot').forEach(function(d){d.classList.remove('active');});
+  if(dot)dot.classList.add('active');
+  localStorage.setItem('pn_color',theme);
+};
+
 // ===== THEME =====
 var isDark=true;
 window.toggleTheme=function(){
   isDark=!isDark;
   document.body.classList.toggle('day',!isDark);
-  var btn=document.getElementById('themeBtn');
-  if(btn)btn.textContent=isDark?'🌙':'☀️';
+  var icon=isDark?'🌙':'☀️';
+  var btn=document.getElementById('themeBtn');if(btn)btn.textContent=icon;
+  var fbtn=document.getElementById('floatThemeBtn');if(fbtn)fbtn.textContent=icon;
   localStorage.setItem('pn_theme',isDark?'dark':'day');
 };
 
@@ -1843,5 +1880,26 @@ if(params.get('join')){
 
 applyT();
 </script>
+
+<!-- FLOATING SETTINGS (visible on all screens) -->
+<div class="float-settings" id="floatSettings">
+  <div class="float-settings-row">
+    <button class="float-theme-btn" id="floatThemeBtn" onclick="toggleTheme()" title="Day/Night">🌙</button>
+    <div class="float-divider"></div>
+    <div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" title="Gold" data-theme="gold"></div>
+    <div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" title="Blue" data-theme="blue"></div>
+    <div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" title="Green" data-theme="green"></div>
+    <div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" title="Purple" data-theme="purple"></div>
+    <div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" title="Red" data-theme="red"></div>
+  </div>
+  <div class="float-settings-row">
+    <button class="float-lang-btn active" onclick="setLang('en',this)" data-lang="en">🇬🇧</button>
+    <button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button>
+    <button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button>
+    <button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button>
+    <button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button>
+  </div>
+</div>
+
 </body>
 </html>
