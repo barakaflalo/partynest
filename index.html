@@ -177,9 +177,9 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
 .podium-wrap{display:flex;align-items:flex-end;gap:8px;justify-content:center;width:100%;}
 .podium-col{text-align:center;flex:1;}
 .podium-bar{border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
-.podium-bar.gold{height:90px;background:linear-gradient(180deg,var(--gold),var(--gold-dim));}
-.podium-bar.silver{height:65px;background:linear-gradient(180deg,#AAA,#666);}
-.podium-bar.bronze{height:48px;background:linear-gradient(180deg,#C87C3E,#7A4A1E);}
+.podium-bar.gold{height:110px;background:linear-gradient(180deg,var(--gold),var(--gold-dim));box-shadow:0 0 20px rgba(201,168,76,0.4);}
+.podium-bar.silver{height:80px;background:linear-gradient(180deg,#CCC,#888);}
+.podium-bar.bronze{height:60px;background:linear-gradient(180deg,#CD7F32,#8B4513);}
 .podium-name{font-size:0.75rem;color:var(--text-dim);margin-top:4px;word-break:break-word;}
 .score-table{width:100%;background:var(--dark2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;}
 .score-row-final{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--dark3);border-radius:8px;}
@@ -429,6 +429,7 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
             <button class="settings-opt active" onclick="setSetting('timeQ',20,this)">20s</button>
             <button class="settings-opt" onclick="setSetting('timeQ',30,this)">30s</button>
             <button class="settings-opt" onclick="setSetting('timeQ',60,this)">60s</button>
+            <button class="settings-opt" onclick="setSetting('timeQ',0,this)" id="txt-noLimit">∞</button>
           </div>
         </div>
         <div class="settings-row">
@@ -705,6 +706,9 @@ const T = {
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
     history:'Game History',
     muted:'You are muted',
+    noLimit:'No Limit',
+    broadcast:'Message All',
+    broadcastPlaceholder:'Type message...',
     settingsTitle:'⚙️ Room Settings',
     category:'Category',
     catAll:'All',
@@ -752,6 +756,9 @@ const T = {
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
     history:'היסטוריית משחקים',
     muted:'אתה מושתק',
+    noLimit:'ללא הגבלה',
+    broadcast:'הודעה לכולם',
+    broadcastPlaceholder:'כתוב הודעה...',
     settingsTitle:'⚙️ הגדרות חדר',
     category:'קטגוריה',
     catAll:'הכל',
@@ -799,6 +806,9 @@ const T = {
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
     history:'История игр',
     muted:'Вы в муте',
+    noLimit:'Без лимита',
+    broadcast:'Сообщение всем',
+    broadcastPlaceholder:'Введи сообщение...',
     settingsTitle:'⚙️ Настройки',
     category:'Категория',
     catAll:'Все',
@@ -846,6 +856,9 @@ const T = {
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
     history:'Historial',
     muted:'Estas silenciado',
+    noLimit:'Sin limite',
+    broadcast:'Mensaje a todos',
+    broadcastPlaceholder:'Escribe mensaje...',
     settingsTitle:'⚙️ Configuracion',
     category:'Categoria',
     catAll:'Todo',
@@ -893,6 +906,9 @@ const T = {
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
     history:'سجل الألعاب',
     muted:'انت مكتوم',
+    noLimit:'بلا حد',
+    broadcast:'رسالة للجميع',
+    broadcastPlaceholder:'اكتب رسالة...',
     settingsTitle:'⚙️ اعدادات',
     category:'الفئة',
     catAll:'الكل',
@@ -1108,6 +1124,7 @@ function applyT(){
   _st('txt-timePerQ',t('timePerQ'));
   _st('txt-categoryLabel',t('category'));
   _st('cat-all',t('catAll'));
+  _st('txt-noLimit',t('noLimit'));
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
   var btnSh=document.getElementById('btn-sh');
@@ -1144,6 +1161,32 @@ window.goTo=function(s){
 function showScreen(s){goTo(s);}
 
 // ===== TOAST =====
+window.showBroadcastInput=function(cid){
+  var d=document.getElementById('broadcastInput_'+cid);
+  if(d)d.style.display=(d.style.display==='none'?'block':'none');
+};
+
+window.sendBroadcast=function(cid){
+  var inp=document.getElementById('broadcastText_'+cid);
+  if(!inp||!inp.value.trim())return;
+  var msg=inp.value.trim();
+  db.ref('rooms/'+roomCode+'/broadcast').set({text:msg,ts:Date.now(),from:myName});
+  inp.value='';
+  var d=document.getElementById('broadcastInput_'+cid);
+  if(d)d.style.display='none';
+};
+
+function showBroadcastToast(bc){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--dark);border:2px solid var(--blue);border-radius:14px;padding:20px 28px;z-index:400;text-align:center;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:toastIn 0.3s ease;';
+  overlay.innerHTML='<div style="font-size:1.5rem;margin-bottom:8px;">📢</div>'+
+    '<div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:6px;">'+bc.from+'</div>'+
+    '<div style="font-size:1rem;font-weight:700;color:var(--text);">'+bc.text+'</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){overlay.remove();},4000);
+  overlay.addEventListener('click',function(){overlay.remove();});
+}
+
 function toast(msg,type='',dur=3000){
   const el=document.createElement('div');
   el.className='toast '+type;el.textContent=msg;
@@ -1378,6 +1421,14 @@ function listenRoom(){
     const room=snap.val();
     scores=room.players||{};
     selectedGame=room.game||'trivia';
+    // Broadcast message from host
+    if(room.broadcast&&room.broadcast.ts){
+      var bKey='broadcast_seen_'+room.broadcast.ts;
+      if(!sessionStorage.getItem(bKey)){
+        sessionStorage.setItem(bKey,'1');
+        showBroadcastToast(room.broadcast);
+      }
+    }
     // Sync room settings for all players
     // Update muted state on chat inputs
     var myMuted=scores[myId]&&scores[myId].muted;
@@ -1650,7 +1701,7 @@ function initTrivia(){
   const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
   db.ref('rooms/'+roomCode).update({
     status:'trivia',triviaQuestions:qs,triviaIndex:0,
-    triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),triviaTimeQ:roomSettings.timeQ||20,
+    triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),triviaTimeQ:roomSettings.timeQ!==undefined?roomSettings.timeQ:20,
     players,chat:null
   });
   systemMsg(t('triviaStarted'));
@@ -1758,22 +1809,27 @@ function loadTrivia(room){
 
   // Timer
   clearInterval(gameTimerInterval);
-  const dur=room.triviaTimeQ||roomSettings.timeQ||20;
+  var tq=room.triviaTimeQ;
+  if(tq===undefined||tq===null) tq=(roomSettings.timeQ!==undefined?roomSettings.timeQ:20);
+  tq=Number(tq);
+  var isNoLimit=(tq===0);
   triviaTimerStart=room.triviaStart||Date.now();
-  gameTimerInterval=setInterval(()=>{
-    const elapsed=(Date.now()-triviaTimerStart)/1000;
-    const rem=Math.max(0,dur-elapsed);
-    const pct=rem/dur*100;
-    document.getElementById('triviaTimerNum').textContent=Math.ceil(rem);
-    document.getElementById('triviaTimerFill').style.width=pct+'%';
-    document.getElementById('triviaTimerFill').classList.toggle('danger',rem<6);
-    if(rem<=0){
-      clearInterval(gameTimerInterval);
-      playSound('timeup');
-      if(isHost)setTimeout(()=>advanceTrivia(room),1500);
-    }
-  },100);
-
+  if(isNoLimit){
+    document.getElementById('triviaTimerNum').textContent='∞';
+    document.getElementById('triviaTimerFill').style.width='100%';
+    document.getElementById('triviaTimerFill').classList.remove('danger');
+  } else {
+    var dur2=tq;
+    gameTimerInterval=setInterval(function(){
+      var elapsed=(Date.now()-triviaTimerStart)/1000;
+      var rem=Math.max(0,dur2-elapsed);
+      var pct=rem/dur2*100;
+      document.getElementById('triviaTimerNum').textContent=Math.ceil(rem);
+      document.getElementById('triviaTimerFill').style.width=pct+'%';
+      document.getElementById('triviaTimerFill').classList.toggle('danger',rem<6);
+      if(rem<=0){clearInterval(gameTimerInterval);playSound('timeup');if(isHost)setTimeout(function(){advanceTrivia(room);},1500);}
+    },100);
+  }
   listenChat('trivia');
 }
 
@@ -2209,18 +2265,20 @@ function showResults(room){
   const podium=document.getElementById('podiumWrap');
   const cls=['gold','silver','bronze'];
   const medals=['🥇','🥈','🥉'];
-  // order: silver(1), gold(0), bronze(2) — visually left=silver, center=gold, right=bronze
-  const order=[1,0,2];
   podium.style.direction='ltr';
-  podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos)=>{
-    const [id,pts]=sorted[pos]||[null,0];
+  podium.style.alignItems='flex-end';
+  // Visual order: 2nd(silver) LEFT, 1st(gold) CENTER, 3rd(bronze) RIGHT
+  const displayOrder=[1,0,2];
+  const heights={0:'110px',1:'80px',2:'60px'};
+  podium.innerHTML=displayOrder.slice(0,Math.min(3,sorted.length)).map(function(rank){
+    const entry=sorted[rank]||[null,0];
+    const id=entry[0],pts=entry[1];
     const name=(scores[id]||{name:'?'}).name;
-    const heights=['90px','110px','65px'];
-    return`<div class="podium-col">
-      <div class="podium-bar ${cls[pos]}" style="height:${heights[pos]}">${medals[pos]}</div>
-      <div class="podium-name">${name||'?'}</div>
-      <div style="font-size:0.75rem;color:var(--gold);font-family:'Cinzel',serif;">${pts}</div>
-    </div>`;
+    return '<div class="podium-col">'+
+      '<div class="podium-bar '+cls[rank]+'" style="height:'+heights[rank]+'">'+medals[rank]+'</div>'+
+      '<div class="podium-name">'+(name||'?')+'</div>'+
+      '<div style="font-size:0.75rem;color:var(--gold);font-family:Cinzel,serif;">'+pts+'</div>'+
+    '</div>';
   }).join('');
   // Table
   document.getElementById('scoreTable').innerHTML=sorted.map(([id,pts],i)=>`
