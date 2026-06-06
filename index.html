@@ -254,7 +254,7 @@ body.rtl .home-top-btns{right:auto;left:14px;}
     <div class="logo-wrap">
       <svg width="64" height="64" viewBox="0 0 38 38"><polygon points="19,2 35,10.5 35,27.5 19,36 3,27.5 3,10.5" fill="#111" stroke="#C9A84C" stroke-width="1.5"/><text x="19" y="25" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#C9A84C">P</text></svg>
       <div class="logo-title">PartyNest</div>
-      <div class="logo-tagline" data-i="tagline">משחקים מרובי שחקנים</div>
+      <div class="logo-tagline" id="homeTagline" data-i="tagline">משחקים מרובי שחקנים</div>
     </div>
     <div class="lang-row">
       <button class="lang-pill active" onclick="setLang('en',this)">🇬🇧 EN</button>
@@ -263,9 +263,9 @@ body.rtl .home-top-btns{right:auto;left:14px;}
       <button class="lang-pill" onclick="setLang('es',this)">🇪🇸 ES</button>
       <button class="lang-pill" onclick="setLang('ar',this)">🇸🇦 عر</button>
     </div>
-    <button class="home-btn btn-gold" onclick="goTo('createName')" data-i="createRoom">🎮 צור חדר</button>
-    <button class="home-btn btn-outline" onclick="goTo('joinName')" data-i="joinRoom">🚪 הצטרף לחדר</button>
-    <div class="home-hint" data-i="howItWorks">כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים<br>3 משחקים: טריוויה, מילה אסורה, ציור</div>
+    <button class="home-btn btn-gold" id="homeCreateBtn" onclick="goTo('createName')" data-i="createRoom">🎮 צור חדר</button>
+    <button class="home-btn btn-outline" id="homeJoinBtn" onclick="goTo('joinName')" data-i="joinRoom">🚪 הצטרף לחדר</button>
+    <div class="home-hint" id="homeHint" data-i="howItWorks">כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים<br>3 משחקים: טריוויה, מילה אסורה, ציור</div>
   </div>
 </div>
 
@@ -738,6 +738,56 @@ const T = {
 let lang='en';
 function t(k){return(T[lang]||T.en)[k]||(T.en[k])||k;}
 
+// ===== setLang =====
+window.setLang=function(l,btn){
+  lang=l;
+  localStorage.setItem('pn_lang',l);
+  document.querySelectorAll('.lang-pill').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  var rtl=['he','ar'].includes(l);
+  document.documentElement.lang=l;
+  document.documentElement.dir=rtl?'rtl':'ltr';
+  document.body.classList.toggle('rtl',rtl);
+  applyT();
+};
+
+// ===== THEME =====
+var isDark=true;
+window.toggleTheme=function(){
+  isDark=!isDark;
+  document.body.classList.toggle('day',!isDark);
+  var btn=document.getElementById('themeBtn');
+  if(btn)btn.textContent=isDark?'🌙':'☀️';
+  localStorage.setItem('pn_theme',isDark?'dark':'day');
+};
+
+// ===== GUIDE & ABOUT =====
+function updateGuideContent(){
+  var el=document.getElementById('guideContent');if(!el)return;
+  var titleEl=document.getElementById('guideModalTitle');if(titleEl)titleEl.textContent=t('guideTitle');
+  var steps=[
+    {icon:'🚪',ti:t('guideStep1Title'),de:t('guideStep1Desc')},
+    {icon:'🎮',ti:t('guideStep2Title'),de:t('guideStep2Desc')},
+    {icon:'🎯',ti:t('guideStep3Title'),de:t('guideStep3Desc')},
+    {icon:'🏆',ti:t('guideStep4Title'),de:t('guideStep4Desc')},
+    {icon:'📤',ti:t('guideStep5Title'),de:t('guideStep5Desc')},
+  ];
+  el.innerHTML=steps.map(function(s){
+    return '<div class="guide-step"><div class="guide-icon">'+s.icon+'</div><div><div class="guide-step-title">'+s.ti+'</div><div class="guide-step-desc">'+s.de+'</div></div></div>';
+  }).join('');
+}
+function updateAboutContent(){
+  var el=document.getElementById('aboutContent');if(!el)return;
+  el.innerHTML='<div class="about-row"><span class="about-label">'+t('aboutDev')+'</span><span class="about-val">Barak Aflalo</span></div>'
+    +'<div class="about-row"><span class="about-label">'+t('aboutVersion')+'</span><span class="about-val">2.0</span></div>'
+    +'<div class="about-row"><span class="about-label">AppNest &copy; 2026</span></div>'
+    +'<div class="about-row"><span class="about-label">'+t('aboutContact')+'</span><a class="about-link" href="https://barakaflalo.github.io/appnest" target="_blank">AppNest</a></div>';
+}
+window.openGuide=function(){updateGuideContent();document.getElementById('guideModal').style.display='flex';};
+window.openAbout=function(){updateAboutContent();document.getElementById('aboutModal').style.display='flex';};
+window.closeModal=function(id){document.getElementById(id).style.display='none';};
+document.addEventListener('click',function(e){if(e.target.classList.contains('modal-overlay'))e.target.style.display='none';});
+
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
   // Restore lang
@@ -820,42 +870,50 @@ window.addEventListener('pagehide', function(){
   }
 });
 
-applyT();
+  applyT();
 }); // end DOMContentLoaded
 function applyT(){
-  const L=T[lang]||T.en;
-  // data-i elements
-  document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));
-  // Home screen
-  _st('homeTagline','tagline');_st('homeCreateBtn','createRoom');_st('homeJoinBtn','joinRoom');_st('homeHint','howItWorks');
-  // Entry screens
-  _st('createTitle','whatsYourName');_st('createSub','nameWillShow');_st('createBtn','createAndGo');
-  _st('joinTitle2','joinTitle');_st('joinSub','enterCode');_st('joinSubmitBtn','joinBtn');
+  var L=T[lang]||T.en;
+  var rtl=['he','ar'].includes(lang);
+  document.documentElement.lang=lang;
+  document.documentElement.dir=rtl?'rtl':'ltr';
+  document.body.classList.toggle('rtl',rtl);
+
+  // All elements with data-i
+  document.querySelectorAll('[data-i]').forEach(function(el){el.textContent=t(el.dataset.i);});
+
+  // Home
+  _st('homeTagline',L.tagline);
+  _st('homeCreateBtn',L.createRoom);
+  _st('homeJoinBtn',L.joinRoom);
+  _st('homeHint',L.howItWorks);
+
+  // Back/leave buttons with data-txt
+  document.querySelectorAll('[data-txt]').forEach(function(el){el.textContent=t(el.dataset.txt);});
+
   // Placeholders
-  _ph('createNameInput','namePlaceholder');_ph('joinNameInput','namePlaceholder');_ph('joinCodeInput','codePlaceholder');
-  _ph('triviaChatInput','messagePlaceholder');_ph('forbiddenChatInput','messagePlaceholder');_ph('drawChatInput','messagePlaceholder');
-  _ph('forbiddenGuessInp','guessWord');_ph('drawGuessInp','guessDraw');
-  // Share buttons
-  _st('btn-cp','copyLink');_st('btn-sh','share');
-  // Lobby
-  _st('lobbyShareCodeTxt','shareCode');_st('lobbyRoomCodeLbl','roomCode');
-  _st('lobbyPlayersTxt','players');_st('lobbyPlayersTxt2','players');
-  _st('lobbyChooseGame','chooseGame');_st('lobbyStartBtn','startGame');
-  _st('lobbyLeaveBtn','leave');_st('lobbyLeaveBtn2','leaveRoom');
-  _st('lobbyWaiting','waitingForHost');_st('lobbyWaitingSub','hostWillStart');
-  // Game names
-  ['trivia','forbidden','draw'].forEach(g=>{_st('game-name-'+g,g);});
-  // Sidebar titles
-  _st('triviaSidebarTitle','liveScores');_st('forbiddenSidebarTitle','liveScores');_st('drawSidebarTitle','liveScores');
-  // Results
-  _st('resultsTitle','gameOver');_st('playAgainBtn','playAgain');
-  // All leave/back buttons
-  document.querySelectorAll('[data-txt]').forEach(el=>el.textContent=t(el.dataset.txt));
-  // Guide/About if open
-  updateGuideContent();updateAboutContent();
+  _ph('createNameInput',L.namePlaceholder);
+  _ph('joinNameInput',L.namePlaceholder);
+  _ph('joinCodeInput',L.codePlaceholder);
+  _ph('triviaChatInput',L.messagePlaceholder);
+  _ph('forbiddenChatInput',L.messagePlaceholder);
+  _ph('drawChatInput',L.messagePlaceholder);
+  _ph('forbiddenGuessInp',L.guessWord);
+  _ph('drawGuessInp',L.guessDraw);
+
+  // Share buttons text
+  var btnCp=document.getElementById('btn-cp');
+  var btnSh=document.getElementById('btn-sh');
+  if(btnCp)btnCp.textContent=L.copyLink;
+  if(btnSh)btnSh.textContent=L.share;
+
+  // Guide/About if modals are open
+  updateGuideContent();
+  updateAboutContent();
 }
-function _st(id,key){const el=document.getElementById(id);if(el)el.textContent=t(key);}
-function _ph(id,key){const el=document.getElementById(id);if(el)el.placeholder=t(key);}
+function _st(id,val){var el=document.getElementById(id);if(el&&val)el.textContent=val;}
+function _ph(id,val){var el=document.getElementById(id);if(el&&val)el.placeholder=val;}
+
 
 
 // ===== STATE =====
