@@ -1162,19 +1162,24 @@ function showScreen(s){goTo(s);}
 
 // ===== TOAST =====
 window.showBroadcastInput=function(cid){
-  var d=document.getElementById('broadcastInput_'+cid);
+  var d=document.getElementById(cid);
+  if(d)d.style.display=(d.style.display==='none'?'block':'none');
+};
+window.showBI=function(btn){
+  var targetId=btn.dataset?btn.dataset.target:btn;
+  var d=document.getElementById(typeof targetId==='string'?targetId:btn);
   if(d)d.style.display=(d.style.display==='none'?'block':'none');
 };
 
-window.sendBroadcast=function(cid){
-  var inp=document.getElementById('broadcastText_'+cid);
+window.sendBroadcast=function(tid,cid){
+  var inp=document.getElementById(tid);
   if(!inp||!inp.value.trim())return;
-  var msg=inp.value.trim();
-  db.ref('rooms/'+roomCode+'/broadcast').set({text:msg,ts:Date.now(),from:myName});
+  db.ref('rooms/'+roomCode+'/broadcast').set({text:inp.value.trim(),ts:Date.now(),from:myName});
   inp.value='';
-  var d=document.getElementById('broadcastInput_'+cid);
+  var d=document.getElementById(cid);
   if(d)d.style.display='none';
 };
+window.sendBI=window.sendBroadcast;
 
 function showBroadcastToast(bc){
   var overlay=document.createElement('div');
@@ -1498,25 +1503,31 @@ function renderSidebarScores(containerId,scoresObj,answered={}){
   if(el)el.innerHTML=html;
 }
 
-function renderHostControls(containerId,extraBtns=''){
+function renderHostControls(containerId,extraBtns){
+  extraBtns=extraBtns||'';
   if(!isHost)return;
   var el=document.getElementById(containerId);
   if(!el)return;
+  var bId='bc'+containerId.replace(/[^a-z0-9]/gi,'');
+  var tId='bt'+containerId.replace(/[^a-z0-9]/gi,'');
+  var bc=t('broadcast')||'Message All';
+  var bp=t('broadcastPlaceholder')||'Type message';
+  var eg=t('endGame')||'End Game';
+  var ho=t('host')||'Host';
   el.innerHTML=
     '<div class="host-controls">'+
-    '<div class="host-ctrl-title">🎛 '+t('host')+'</div>'+
+    '<div class="host-ctrl-title">&#127963; '+ho+'</div>'+
     extraBtns+
-    '<button class="host-ctrl-btn" onclick="showBroadcastInput(''+containerId+'')" style="border-color:var(--blue);color:var(--blue);">📢 '+t('broadcast')+'</button>'+
-    '<div id="broadcastInput_'+containerId+'" style="display:none;margin-top:6px;">'+
+    '<button class="host-ctrl-btn" onclick="showBI(this)" data-target="'+bId+'" style="border-color:var(--blue);color:var(--blue);">&#128226; '+bc+'</button>'+
+    '<div id="'+bId+'" style="display:none;margin-top:6px;">'+
       '<div style="display:flex;gap:5px;">'+
-        '<input id="broadcastText_'+containerId+'" style="flex:1;background:var(--dark3);border:1px solid var(--gold-dim);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.78rem;font-family:Heebo,sans-serif;" placeholder="'+t('broadcastPlaceholder')+'...">'+
-        '<button onclick="sendBroadcast(''+containerId+'')" style="background:var(--blue);border:none;color:#FFF;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.9rem;">➤</button>'+
+        '<input id="'+tId+'" style="flex:1;background:var(--dark3);border:1px solid var(--gold-dim);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.78rem;font-family:Heebo,sans-serif;" placeholder="'+bp+'...">'+
+        '<button onclick="sendBI(''+tId+'',''+bId+'')" style="background:var(--blue);border:none;color:#FFF;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;">&#10148;</button>'+
       '</div>'+
     '</div>'+
-    '<button class="host-ctrl-btn danger" onclick="confirmEndGame()">'+t('endGame')+'</button>'+
+    '<button class="host-ctrl-btn danger" onclick="confirmEndGame()">'+eg+'</button>'+
     '</div>';
 }
-
 window.confirmEndGame=function(){
   if(confirm(t('endConfirm')))
     db.ref('rooms/'+roomCode).update({status:'results',finalScores:getScoresFlat()});
