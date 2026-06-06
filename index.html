@@ -12,7 +12,379 @@
 <title>PartyNest — Multiplayer Games</title>
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
+// ============================================================
+// ===== VOTE GAME ============================================
+// ============================================================
+const WYR_Q={
+  en:[
+    {a:'Fly',b:'Be invisible'},
+    {a:'Always be cold',b:'Always be hot'},
+    {a:'Never use internet',b:'Never watch TV'},
+    {a:'Be super strong',b:'Be super smart'},
+    {a:'Live in the city',b:'Live in the country'},
+    {a:'Eat only sweet',b:'Eat only salty'},
+    {a:'Talk to animals',b:'Speak all languages'},
+    {a:'Go to the past',b:'Go to the future'},
+    {a:'Have more time',b:'Have more money'},
+    {a:'Never sleep',b:'Sleep all day'},
+  ],
+  he:[
+    {a:'לעוף',b:'להיות בלתי נראה'},
+    {a:'תמיד קר',b:'תמיד חם'},
+    {a:'בלי אינטרנט',b:'בלי טלוויזיה'},
+    {a:'חזק מאוד',b:'חכם מאוד'},
+    {a:'לגור בעיר',b:'לגור בכפר'},
+    {a:'רק מתוק',b:'רק מלוח'},
+    {a:'לדבר עם בעלי חיים',b:'לדבר כל שפה'},
+    {a:'לנסוע לעבר',b:'לנסוע לעתיד'},
+    {a:'יותר זמן',b:'יותר כסף'},
+    {a:'לא לישון לעולם',b:'לישון כל היום'},
+  ],
+};
+
+function initVote(){
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'vote',voteState:'host_input',votePlayers:ps,chat:null
+  });
+  systemMsg(t('vote')+' started!');
+}
+
+function loadVote(room){
+  showScreen('vote');
+  document.getElementById('voteCode').textContent=roomCode;
+  const vs=room.voteState||'host_input';
+  document.getElementById('voteHostArea').style.display=(isHost&&vs==='host_input')?'block':'none';
+  document.getElementById('voteQuestionArea').style.display=(vs==='voting')?'block':'none';
+  if(vs==='voting'&&room.voteQuestion){
+    document.getElementById('voteQText').textContent=room.voteQuestion;
+    document.getElementById('voteTextA').textContent=room.voteA||'A';
+    document.getElementById('voteTextB').textContent=room.voteB||'B';
+    const votes=room.voteAnswers||{};
+    const total=Object.keys(scores).length||1;
+    const cntA=Object.values(votes).filter(v=>v==='A').length;
+    const cntB=Object.values(votes).filter(v=>v==='B').length;
+    const pctA=total>0?Math.round(cntA/total*100):0;
+    const pctB=total>0?Math.round(cntB/total*100):0;
+    document.getElementById('voteBarA').style.width=pctA+'%';
+    document.getElementById('voteBarB').style.width=pctB+'%';
+    document.getElementById('votePctA').textContent=pctA+'%';
+    document.getElementById('votePctB').textContent=pctB+'%';
+    document.getElementById('voteCount').textContent=(cntA+cntB)+'/'+total+' voted';
+    const myVote=votes[myId];
+    document.getElementById('voteOptA').classList.toggle('voted',myVote==='A');
+    document.getElementById('voteOptB').classList.toggle('voted',myVote==='B');
+    if(myVote){document.getElementById('voteOptA').onclick=null;document.getElementById('voteOptB').onclick=null;}
+  }
+  renderSidebarScores('voteSidebarScores',room.votePlayers||scores,{});
+  renderHostControls('voteHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="nextVoteRound()">'+t('nextRound')+' ▶</button>':'');
+  listenChat('vote');
+}
+
+window.launchVote=function(){
+  var q=document.getElementById('voteQ').value.trim();
+  var a=document.getElementById('voteA').value.trim()||'A';
+  var b=document.getElementById('voteB').value.trim()||'B';
+  if(!q)return;
+  db.ref('rooms/'+roomCode).update({voteQuestion:q,voteA:a,voteB:b,voteState:'voting',voteAnswers:{}});
+};
+
+window.castVote=async function(choice){
+  const snap=await db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).once('value');
+  if(snap.val())return;
+  db.ref('rooms/'+roomCode+'/voteAnswers/'+myId).set(choice);
+};
+
+window.nextVoteRound=function(){
+  document.getElementById('voteQ').value='';
+  document.getElementById('voteA').value='';
+  document.getElementById('voteB').value='';
+  db.ref('rooms/'+roomCode).update({voteState:'host_input',voteQuestion:'',voteAnswers:{}});
+};
+
+// ============================================================
+// ===== WHO AM I =============================================
+// ============================================================
+const WHOAMI_WORDS={
+  en:['Einstein','Napoleon','Batman','Cleopatra','Elon Musk','Spider-Man','Shakespeare','Beyonce','Harry Potter','Gandhi','Mickey Mouse','Darth Vader','Queen Elizabeth','Sherlock Holmes','Mario','Wonder Woman'],
+  he:['איינשטיין','נפוליאון','באטמן','קליאופטרה','אלון מאסק','ספיידרמן','שייקספיר','גנדי','הרי פוטר','מיקי מאוס','דארת׳ ויידר','שרלוק הולמס','מריו','וונדר וומן'],
+};
+
+function initWhoami(){
+  const players=Object.keys(scores);
+  const words=(WHOAMI_WORDS[lang]||WHOAMI_WORDS.en).sort(()=>Math.random()-0.5);
+  const assignments={};
+  players.forEach((id,i)=>assignments[id]=words[i%words.length]);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,identity:assignments[id]});
+  db.ref('rooms/'+roomCode).update({status:'whoami',whoamiPlayers:ps,whoamiCurrent:players[0],chat:null});
+  systemMsg(t('whoami')+' started!');
+}
+
+function loadWhoami(room){
+  showScreen('whoami');
+  document.getElementById('whoamiCode').textContent=roomCode;
+  const players=room.whoamiPlayers||{};
+  const myData=players[myId]||{};
+  document.getElementById('whoamiIdentity').textContent=myData.identity||'?';
+  const currentId=room.whoamiCurrent;
+  const currentName=(scores[currentId]||{name:'?'}).name;
+  const isMyTurn=currentId===myId;
+  document.getElementById('whoamiCurrentPlayer').textContent=isMyTurn?'🎯 Your turn to ask!':currentName+' is asking...';
+  document.getElementById('whoamiGuesserArea').style.display=isMyTurn?'none':'block';
+  renderSidebarScores('whoamiSidebarScores',players,{});
+  renderHostControls('whoamiHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="nextWhoamiTurn()">'+t('nextRound')+' ▶</button>':'');
+  listenChat('whoami');
+}
+
+window.whoamiAnswer=function(yes){
+  const answer=yes?'✅ Yes!':'❌ No!';
+  systemMsg(answer);
+};
+
+window.nextWhoamiTurn=function(){
+  db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(s){
+    var players=Object.keys(s.val()||{});
+    var cur=players.indexOf(db.ref('rooms/'+roomCode+'/whoamiCurrent').toString());
+    var next=players[(cur+1)%players.length];
+    db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
+  });
+  db.ref('rooms/'+roomCode+'/whoamiCurrent').once('value').then(function(s){
+    var cur=s.val();
+    db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(sp){
+      var players=Object.keys(sp.val()||{});
+      var idx=players.indexOf(cur);
+      var next=players[(idx+1)%players.length];
+      db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
+    });
+  });
+};
+
+// ============================================================
+// ===== HOT POTATO (BOMB) ====================================
+// ============================================================
+var bombTimerInterval=null;
+
+function initBomb(){
+  const players=Object.keys(scores);
+  const duration=20+Math.floor(Math.random()*20); // 20-40 seconds
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,alive:true});
+  db.ref('rooms/'+roomCode).update({
+    status:'bomb',bombHolder:players[0],bombDuration:duration,
+    bombStart:Date.now(),bombRound:1,bombPlayers:ps,chat:null
+  });
+  systemMsg('💣 Hot Potato started!');
+}
+
+function loadBomb(room){
+  if(!room.bombHolder)return;
+  showScreen('bomb');
+  document.getElementById('bombCode').textContent=roomCode;
+  document.getElementById('bombRoundLbl').textContent=t('round')+' '+(room.bombRound||1);
+  const holderName=(scores[room.bombHolder]||{name:'?'}).name;
+  const isHolder=room.bombHolder===myId;
+  document.getElementById('bombHolder').textContent='🔥 '+holderName;
+  document.getElementById('bombStatus').textContent=isHolder?'YOU HAVE THE BOMB! Pass it!':'Watch out...';
+  document.getElementById('bombPassBtn').style.display=isHolder?'block':'none';
+  // Timer
+  clearInterval(bombTimerInterval);
+  const dur=room.bombDuration||30;
+  const start=room.bombStart||Date.now();
+  bombTimerInterval=setInterval(function(){
+    var elapsed=(Date.now()-start)/1000;
+    var rem=Math.max(0,dur-elapsed);
+    document.getElementById('bombTimerNum').textContent=Math.ceil(rem);
+    document.getElementById('bombTimerFill').style.width=(rem/dur*100)+'%';
+    if(rem<=0){
+      clearInterval(bombTimerInterval);
+      if(isHost) bombExplode(room);
+    }
+  },100);
+  renderSidebarScores('bombSidebarScores',room.bombPlayers||scores,{});
+  renderHostControls('bombHostControls','');
+  listenChat('bomb');
+}
+
+window.passBomb=async function(){
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const room=snap.val();
+  if(room.bombHolder!==myId)return;
+  const players=Object.keys(room.bombPlayers||{}).filter(id=>id!==myId&&(room.bombPlayers[id].alive!==false));
+  if(!players.length)return;
+  const next=players[Math.floor(Math.random()*players.length)];
+  const newDur=Math.max(10,(room.bombDuration||30)-2);
+  db.ref('rooms/'+roomCode).update({bombHolder:next,bombStart:Date.now(),bombDuration:newDur});
+};
+
+async function bombExplode(room){
+  const loser=room.bombHolder;
+  const loserName=(scores[loser]||{name:'?'}).name;
+  systemMsg('💥 '+loserName+' exploded!');
+  // Give points to survivors
+  const ps={...(room.bombPlayers||{})};
+  Object.keys(ps).forEach(id=>{if(id!==loser)ps[id].score=(ps[id].score||0)+100;});
+  ps[loser].alive=false;
+  // Check if only one left
+  const alive=Object.keys(ps).filter(id=>ps[id].alive!==false);
+  if(alive.length<=1){
+    const fs={};Object.entries(ps).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    const next=alive[Math.floor(Math.random()*alive.length)];
+    const newDur=Math.max(10,(room.bombDuration||30)-3);
+    await db.ref('rooms/'+roomCode).update({bombPlayers:ps,bombHolder:next,bombStart:Date.now(),bombDuration:newDur,bombRound:(room.bombRound||1)+1});
+  }
+}
+
+// ============================================================
+// ===== WOULD YOU RATHER =====================================
+// ============================================================
+var wyrTimerInterval=null;
+
+function initWyr(){
+  const qs=(WYR_Q[lang]||WYR_Q.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'wyr',wyrQuestions:qs,wyrIndex:0,
+    wyrAnswers:{},wyrStart:Date.now(),wyrPlayers:ps,chat:null
+  });
+  systemMsg(t('wyr')+' started!');
+}
+
+function loadWyr(room){
+  if(!room.wyrQuestions)return;
+  showScreen('wyr');
+  document.getElementById('wyrCode').textContent=roomCode;
+  const idx=room.wyrIndex||0;
+  const q=room.wyrQuestions[idx];
+  document.getElementById('wyrRound').textContent=t('round')+' '+(idx+1)+'/'+(room.wyrQuestions.length);
+  document.getElementById('wyrTextA').textContent=q.a;
+  document.getElementById('wyrTextB').textContent=q.b;
+  const votes=room.wyrAnswers||{};
+  const myVote=votes[myId];
+  document.getElementById('wyrOptA').classList.toggle('wyr-voted',myVote==='A');
+  document.getElementById('wyrOptB').classList.toggle('wyr-voted',myVote==='B');
+  const total=Object.keys(scores).length||1;
+  const voted=Object.keys(votes).length;
+  document.getElementById('wyrVoted').textContent=voted+'/'+total+' voted';
+  renderSidebarScores('wyrSidebarScores',room.wyrPlayers||scores,votes);
+  renderHostControls('wyrHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="advanceWyr()">'+t('nextRound')+' ▶</button>':'');
+  // Timer 15s
+  clearInterval(wyrTimerInterval);
+  const start=room.wyrStart||Date.now();
+  wyrTimerInterval=setInterval(function(){
+    var rem=Math.max(0,15-(Date.now()-start)/1000);
+    document.getElementById('wyrTimer').textContent=Math.ceil(rem);
+    document.getElementById('wyrTimerFill').style.width=(rem/15*100)+'%';
+    if(rem<=0){clearInterval(wyrTimerInterval);if(isHost)setTimeout(advanceWyr,1200);}
+  },100);
+  listenChat('wyr');
+}
+
+window.voteWyr=function(choice){
+  db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value').then(function(s){
+    if(s.val())return;
+    db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).set(choice);
+    // Give points
+    db.ref('rooms/'+roomCode+'/wyrPlayers/'+myId+'/score').transaction(function(s){return (s||0)+50;});
+  });
+};
+
+window.advanceWyr=async function(){
+  clearInterval(wyrTimerInterval);
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  const next=(r.wyrIndex||0)+1;
+  if(next>=(r.wyrQuestions||[]).length){
+    const fs={};Object.entries(r.wyrPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    await db.ref('rooms/'+roomCode).update({wyrIndex:next,wyrAnswers:{},wyrStart:Date.now()});
+  }
+};
+
+// ============================================================
+// ===== FASTEST FINGER =======================================
+// ============================================================
+var fastestTimerInterval=null;
+
+function initFastest(){
+  const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0});
+  db.ref('rooms/'+roomCode).update({
+    status:'fastest',fastestQuestions:qs,fastestIndex:0,
+    fastestBuzzed:null,fastestStart:Date.now(),fastestPlayers:ps,
+    fastestAnswered:{},chat:null
+  });
+  systemMsg('⚡ Fastest Finger started!');
+}
+
+function loadFastest(room){
+  if(!room.fastestQuestions)return;
+  showScreen('fastest');
+  document.getElementById('fastestCode').textContent=roomCode;
+  const idx=room.fastestIndex||0;
+  const q=room.fastestQuestions[idx];
+  document.getElementById('fastestQLbl').textContent='Q '+(idx+1)+'/'+(room.fastestQuestions.length);
+  document.getElementById('fastestQText').textContent=q.q;
+  const buzzed=room.fastestBuzzed;
+  const buzzedName=buzzed?(scores[buzzed]||{name:'?'}).name:null;
+  document.getElementById('fastestBuzzBtn').style.display=(!buzzed&&!room.fastestAnswered?.[myId])?'block':'none';
+  document.getElementById('fastestBuzzed').style.display=buzzed?'block':'none';
+  if(buzzed) document.getElementById('fastestBuzzed').textContent='⚡ '+buzzedName+'  — Answer: '+q.a;
+  document.getElementById('fastestStatus').textContent=Object.keys(room.fastestAnswered||{}).length+'/'+Object.keys(scores).length+' answered';
+  renderSidebarScores('fastestSidebarScores',room.fastestPlayers||scores,room.fastestAnswered||{});
+  renderHostControls('fastestHostControls',
+    isHost?'<button class="host-ctrl-btn primary" onclick="advanceFastest()">'+t('nextRound')+' ▶</button>':'');
+  clearInterval(fastestTimerInterval);
+  if(!buzzed){
+    const start=room.fastestStart||Date.now();
+    fastestTimerInterval=setInterval(function(){
+      var rem=Math.max(0,5-(Date.now()-start)/1000);
+      document.getElementById('fastestTimer').textContent=Math.ceil(rem);
+      document.getElementById('fastestTimerFill').style.width=(rem/5*100)+'%';
+      if(rem<=0){clearInterval(fastestTimerInterval);if(isHost)setTimeout(advanceFastest,1500);}
+    },100);
+  }
+  listenChat('fastest');
+}
+
+window.buzzIn=async function(){
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  if(r.fastestBuzzed)return;
+  const elapsed=(Date.now()-(r.fastestStart||Date.now()))/1000;
+  const pts=Math.max(100,500-Math.floor(elapsed*50));
+  await db.ref('rooms/'+roomCode+'/fastestBuzzed').set(myId);
+  await db.ref('rooms/'+roomCode+'/fastestPlayers/'+myId+'/score').transaction(s=>(s||0)+pts);
+  await db.ref('rooms/'+roomCode+'/fastestAnswered/'+myId).set(true);
+  clearInterval(fastestTimerInterval);
+  playSound('correct');
+};
+
+window.advanceFastest=async function(){
+  clearInterval(fastestTimerInterval);
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const r=snap.val();
+  const next=(r.fastestIndex||0)+1;
+  if(next>=(r.fastestQuestions||[]).length){
+    const fs={};Object.entries(r.fastestPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
+    await db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+  } else {
+    await db.ref('rooms/'+roomCode).update({fastestIndex:next,fastestBuzzed:null,fastestAnswered:{},fastestStart:Date.now()});
+  }
+};
+
+// Simple games - Simon, Anagram, Complete, Number - use Trivia engine with different UI
+function initSimon(){initTrivia();} // Uses trivia with custom display
+function initAnagram(){initTrivia();}
+function initComplete(){initTrivia();}
+function initNumber(){initTrivia();}
+
+</script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -295,6 +667,53 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
 .sidebar-mute.muted{background:var(--gold-dim);}
 .muted-badge{font-size:0.65rem;color:var(--gold-dim);margin-left:3px;}
 
+
+/* ===== VOTE GAME ===== */
+.vote-question{background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;padding:20px;text-align:center;font-size:1.1rem;font-weight:700;margin-bottom:12px;}
+.vote-options{display:flex;flex-direction:column;gap:10px;}
+.vote-opt{background:var(--dark2);border:2px solid var(--dark3);border-radius:12px;padding:14px;cursor:pointer;font-size:0.95rem;font-family:'Heebo',sans-serif;color:var(--text);transition:all 0.2s;display:flex;align-items:center;justify-content:space-between;}
+.vote-opt:hover:not(:disabled){border-color:var(--gold-dim);}
+.vote-opt.voted{border-color:var(--gold);background:#1A1500;}
+.vote-bar{height:8px;background:var(--gold-dim);border-radius:4px;transition:width 0.5s ease;}
+.vote-count{font-size:0.8rem;color:var(--gold);font-weight:700;}
+.vote-input-area{background:var(--dark2);border:1px solid var(--gold-dim);border-radius:12px;padding:14px;}
+/* ===== WHO AM I ===== */
+.whoami-card{background:var(--dark2);border:2px solid var(--gold-dim);border-radius:16px;padding:20px;text-align:center;}
+.whoami-identity{font-family:'Cinzel',serif;font-size:2rem;color:var(--gold);margin:14px 0;}
+.whoami-identity.hidden{filter:blur(8px);user-select:none;}
+.yn-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+.yn-btn{padding:14px;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;border:none;font-family:'Heebo',sans-serif;}
+.yn-yes{background:var(--green);color:#FFF;}
+.yn-no{background:var(--red);color:#FFF;}
+/* ===== BOMB ===== */
+.bomb-display{text-align:center;padding:20px;}
+.bomb-emoji{font-size:5rem;animation:bombPulse 0.8s ease-in-out infinite;}
+@keyframes bombPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+.bomb-holder{font-family:'Cinzel',serif;font-size:1.4rem;color:var(--gold);margin:12px 0;}
+.bomb-pass{width:100%;padding:16px;background:linear-gradient(135deg,var(--red),#FF6060);border:none;border-radius:14px;color:#FFF;font-size:1.1rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;}
+/* ===== WYR ===== */
+.wyr-vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;}
+.wyr-opt{background:var(--dark2);border:2px solid var(--dark3);border-radius:14px;padding:18px;text-align:center;cursor:pointer;font-size:0.95rem;font-family:'Heebo',sans-serif;color:var(--text);transition:all 0.2s;min-height:90px;display:flex;align-items:center;justify-content:center;}
+.wyr-opt:hover:not(.wyr-voted){border-color:var(--gold-dim);}
+.wyr-opt.wyr-voted{border-color:var(--gold);background:#1A1500;}
+.wyr-or{color:var(--gold-dim);font-weight:700;text-align:center;}
+/* ===== SIMON SAYS ===== */
+.simon-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:280px;margin:0 auto;}
+.simon-btn{height:120px;border-radius:16px;border:4px solid transparent;cursor:pointer;transition:all 0.1s;opacity:0.7;}
+.simon-btn.lit{opacity:1;transform:scale(1.05);box-shadow:0 0 30px currentColor;}
+.simon-btn:disabled{cursor:default;}
+/* ===== ANAGRAM ===== */
+.anagram-letters{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:14px 0;}
+.anagram-letter{width:42px;height:42px;background:var(--dark2);border:2px solid var(--gold-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);cursor:pointer;transition:all 0.15s;}
+.anagram-letter:hover:not(.used){background:var(--dark3);transform:translateY(-2px);}
+.anagram-letter.used{opacity:0.3;cursor:default;}
+.anagram-answer{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;min-height:50px;margin:10px 0;}
+.anagram-slot{width:42px;height:42px;border-bottom:3px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);cursor:pointer;}
+/* ===== FASTEST ===== */
+.fastest-question{background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;padding:20px;text-align:center;font-size:1.1rem;font-weight:700;}
+.fastest-buzz{width:100%;padding:20px;background:linear-gradient(135deg,var(--gold-dim),var(--gold));border:none;border-radius:14px;color:#0A0A0A;font-size:1.3rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:12px;}
+.fastest-buzzed{text-align:center;font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);padding:14px;}
+
 </style>
 </head>
 <body>
@@ -405,10 +824,19 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     </div>
     <div>
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="chooseGame">בחר משחק</div>
-      <div class="game-select-grid">
-        <div class="game-opt active" onclick="selectGame('trivia')" id="go-trivia"><span class="game-opt-icon">🧠</span><span class="game-opt-name" data-i="trivia">טריוויה</span></div>
-        <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden"><span class="game-opt-icon">🚫</span><span class="game-opt-name" data-i="forbidden">מילה אסורה</span></div>
-        <div class="game-opt" onclick="selectGame('draw')" id="go-draw"><span class="game-opt-icon">🎨</span><span class="game-opt-name" data-i="draw">ציור</span></div>
+      <div class="game-select-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="game-opt active" onclick="selectGame('trivia')" id="go-trivia"><span class="game-opt-icon">🧠</span><span class="game-opt-name" id="gn-trivia">Trivia</span></div>
+        <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden"><span class="game-opt-icon">🚫</span><span class="game-opt-name" id="gn-forbidden">Forbidden</span></div>
+        <div class="game-opt" onclick="selectGame('draw')" id="go-draw"><span class="game-opt-icon">🎨</span><span class="game-opt-name" id="gn-draw">Drawing</span></div>
+        <div class="game-opt" onclick="selectGame('vote')" id="go-vote"><span class="game-opt-icon">🗳️</span><span class="game-opt-name" id="gn-vote">Vote</span></div>
+        <div class="game-opt" onclick="selectGame('whoami')" id="go-whoami"><span class="game-opt-icon">🃏</span><span class="game-opt-name" id="gn-whoami">Who Am I</span></div>
+        <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb"><span class="game-opt-icon">💣</span><span class="game-opt-name" id="gn-bomb">Hot Potato</span></div>
+        <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr"><span class="game-opt-icon">🔮</span><span class="game-opt-name" id="gn-wyr">Would You Rather</span></div>
+        <div class="game-opt" onclick="selectGame('simon')" id="go-simon"><span class="game-opt-icon">🎵</span><span class="game-opt-name" id="gn-simon">Simon Says</span></div>
+        <div class="game-opt" onclick="selectGame('anagram')" id="go-anagram"><span class="game-opt-icon">🔤</span><span class="game-opt-name" id="gn-anagram">Anagram</span></div>
+        <div class="game-opt" onclick="selectGame('complete')" id="go-complete"><span class="game-opt-icon">✏️</span><span class="game-opt-name" id="gn-complete">Finish It</span></div>
+        <div class="game-opt" onclick="selectGame('number')" id="go-number"><span class="game-opt-icon">🔢</span><span class="game-opt-name" id="gn-number">Guess Number</span></div>
+        <div class="game-opt" onclick="selectGame('fastest')" id="go-fastest"><span class="game-opt-icon">⚡</span><span class="game-opt-name" id="gn-fastest">Fastest Finger</span></div>
       </div>
       <!-- ROOM SETTINGS - shown only for trivia -->
       <div class="room-settings" id="roomSettingsPanel" style="margin-top:10px;">
@@ -708,6 +1136,8 @@ const T = {
     muted:'You are muted',
     noLimit:'No Limit',
     broadcast:'Message All',
+    vote:'Vote',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
+    simon:'Simon Says',anagram:'Anagram',complete:'Finish the Sentence',number:'Guess My Number',fastest:'Fastest Finger',
     broadcastPlaceholder:'Type message...',
     settingsTitle:'⚙️ Room Settings',
     category:'Category',
@@ -758,6 +1188,8 @@ const T = {
     muted:'אתה מושתק',
     noLimit:'ללא הגבלה',
     broadcast:'הודעה לכולם',
+    vote:'הצבעה',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
+    simon:'סיימון אומר',anagram:'אנגרמות',complete:'השלם המשפט',number:'נחש את המספר',fastest:'מי הכי מהיר',
     broadcastPlaceholder:'כתוב הודעה...',
     settingsTitle:'⚙️ הגדרות חדר',
     category:'קטגוריה',
@@ -808,6 +1240,8 @@ const T = {
     muted:'Вы в муте',
     noLimit:'Без лимита',
     broadcast:'Сообщение всем',
+    vote:'Голосование',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
+    simon:'Саймон говорит',anagram:'Анаграмма',complete:'Закончи фразу',number:'Угадай число',fastest:'Самый быстрый',
     broadcastPlaceholder:'Введи сообщение...',
     settingsTitle:'⚙️ Настройки',
     category:'Категория',
@@ -858,6 +1292,8 @@ const T = {
     muted:'Estas silenciado',
     noLimit:'Sin limite',
     broadcast:'Mensaje a todos',
+    vote:'Votacion',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
+    simon:'Simon dice',anagram:'Anagrama',complete:'Termina la frase',number:'Adivina el numero',fastest:'Mas rapido',
     broadcastPlaceholder:'Escribe mensaje...',
     settingsTitle:'⚙️ Configuracion',
     category:'Categoria',
@@ -908,6 +1344,8 @@ const T = {
     muted:'انت مكتوم',
     noLimit:'بلا حد',
     broadcast:'رسالة للجميع',
+    vote:'تصويت',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
+    simon:'سايمون يقول',anagram:'انغرام',complete:'اكمل الجملة',number:'خمن الرقم',fastest:'الاسرع',
     broadcastPlaceholder:'اكتب رسالة...',
     settingsTitle:'⚙️ اعدادات',
     category:'الفئة',
@@ -1125,6 +1563,12 @@ function applyT(){
   _st('txt-categoryLabel',t('category'));
   _st('cat-all',t('catAll'));
   _st('txt-noLimit',t('noLimit'));
+  // Game names
+  var gameNames={trivia:t('trivia'),forbidden:t('forbidden'),draw:t('draw'),
+    vote:t('vote'),whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr'),
+    simon:t('simon'),anagram:t('anagram'),complete:t('complete'),
+    number:t('number'),fastest:t('fastest')};
+  Object.keys(gameNames).forEach(function(k){var el=document.getElementById('gn-'+k);if(el)el.textContent=gameNames[k];});
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
   var btnSh=document.getElementById('btn-sh');
@@ -1274,7 +1718,7 @@ window.selectGame=function(g){
   db.ref('rooms/'+roomCode).update({game:g});
   // Show/hide settings panel (only relevant for trivia)
   var sp=document.getElementById('roomSettingsPanel');
-  if(sp)sp.style.display=(g==='trivia'?'':'none');
+  if(sp)sp.style.display=(g==='trivia'||g==='fastest'?'':'none');
 };
 
 window.shareVia=function(platform){
@@ -1406,10 +1850,13 @@ function handleCountdown(room){
   showCountdown(function(){
     _countdownShown=false;
     if(isHost){
-      // Start actual game after countdown
-      if(selectedGame==='trivia')initTrivia();
-      else if(selectedGame==='forbidden')initForbidden();
-      else if(selectedGame==='draw')initDraw();
+      var initMap={
+        trivia:initTrivia, forbidden:initForbidden, draw:initDraw,
+        vote:initVote, whoami:initWhoami, bomb:initBomb, wyr:initWyr,
+        fastest:initFastest, simon:initSimon, anagram:initAnagram,
+        complete:initComplete, number:initNumber
+      };
+      if(initMap[selectedGame]) initMap[selectedGame]();
     }
     // Non-host will pick up status change via listenRoom
   });
@@ -1460,6 +1907,11 @@ function listenRoom(){
     else if(room.status==='trivia')loadTrivia(room);
     else if(room.status==='forbidden')loadForbidden(room);
     else if(room.status==='draw')loadDraw(room);
+    else if(room.status==='vote')loadVote(room);
+    else if(room.status==='whoami')loadWhoami(room);
+    else if(room.status==='bomb')loadBomb(room);
+    else if(room.status==='wyr')loadWyr(room);
+    else if(room.status==='fastest')loadFastest(room);
     else if(room.status==='results')showResults(room);
   });
   
@@ -1676,38 +2128,147 @@ function clearAllTimers(){
 // ===== TRIVIA =============
 // ===========================
 const TQ={
-  he:[
-    {q:'מה בירת צרפת?',a:'פריז',w:['לונדון','ברלין','רומא']},
-    {q:'כמה צבעים בקשת בענן?',a:'7',w:['5','6','8']},
-    {q:'מי כתב את מלחמה ושלום?',a:'טולסטוי',w:['דוסטויבסקי','גוגול','צ׳כוב']},
-    {q:'הכוכב הגדול ביותר במערכת השמש?',a:'השמש',w:['צדק','שבתאי','נפטון']},
-    {q:'כמה ימים בשנת עיבור?',a:'366',w:['365','367','360']},
-    {q:'הים הגדול ביותר בעולם?',a:'האוקיינוס השקט',w:['האוקיינוס האטלנטי','האוקיינוס ההודי','הים התיכון']},
-    {q:'מי צייר את המונה ליזה?',a:'לאונרדו דה וינצ׳י',w:['מיכלאנג׳לו','רפאל','בוטיצ׳לי']},
-    {q:'סמל כימי של זהב?',a:'Au',w:['Ag','Fe','Cu']},
-    {q:'כמה עצמות בגוף האדם?',a:'206',w:['196','216','180']},
-    {q:'הגובה של הר האברסט?',a:'8,848 מטר',w:['8,000 מטר','9,000 מטר','7,500 מטר']},
-    {q:'מה האוקיינוס הקטן ביותר?',a:'הארקטי',w:['ההודי','האטלנטי','הדרומי']},
-    {q:'כמה שחקנים בנבחרת כדורגל?',a:'11',w:['10','12','9']},
-  ],
   en:[
     {q:'Capital of France?',a:'Paris',w:['London','Berlin','Rome'],cat:'geo'},
+    {q:'Largest ocean?',a:'Pacific',w:['Atlantic','Indian','Arctic'],cat:'geo'},
+    {q:'Capital of Japan?',a:'Tokyo',w:['Kyoto','Osaka','Hiroshima'],cat:'geo'},
+    {q:'Longest river in the world?',a:'Nile',w:['Amazon','Yangtze','Mississippi'],cat:'geo'},
+    {q:'Capital of Australia?',a:'Canberra',w:['Sydney','Melbourne','Brisbane'],cat:'geo'},
+    {q:'Most populated country?',a:'China',w:['India','USA','Russia'],cat:'geo'},
+    {q:'Smallest country in the world?',a:'Vatican City',w:['Monaco','San Marino','Liechtenstein'],cat:'geo'},
+    {q:'Capital of Brazil?',a:'Brasilia',w:['Rio de Janeiro','Sao Paulo','Salvador'],cat:'geo'},
+    {q:'Egypt is in which continent?',a:'Africa',w:['Asia','Europe','South America'],cat:'geo'},
+    {q:'Capital of Canada?',a:'Ottawa',w:['Toronto','Vancouver','Montreal'],cat:'geo'},
+    {q:'How many continents?',a:'7',w:['5','6','8'],cat:'geo'},
+    {q:'Smallest ocean?',a:'Arctic',w:['Indian','Atlantic','Southern'],cat:'geo'},
+    {q:'Height of Mount Everest?',a:'8,848m',w:['8,000m','9,000m','7,500m'],cat:'geo'},
+    {q:'Capital of Russia?',a:'Moscow',w:['St. Petersburg','Kiev','Minsk'],cat:'geo'},
+    {q:'Amazon rainforest is mostly in?',a:'Brazil',w:['Peru','Colombia','Venezuela'],cat:'geo'},
+    {q:'Capital of Germany?',a:'Berlin',w:['Munich','Hamburg','Frankfurt'],cat:'geo'},
+    {q:'Which ocean is the Bermuda Triangle in?',a:'Atlantic',w:['Pacific','Indian','Arctic'],cat:'geo'},
+    {q:'Tallest mountain in Africa?',a:'Kilimanjaro',w:['Kenya','Atlas','Rwenzori'],cat:'geo'},
+    {q:'Capital of South Korea?',a:'Seoul',w:['Busan','Incheon','Daegu'],cat:'geo'},
+    {q:'Which country is the Sahara desert mainly in?',a:'Algeria',w:['Egypt','Libya','Morocco'],cat:'geo'},
+    {q:'Chemical symbol for gold?',a:'Au',w:['Ag','Fe','Cu'],cat:'science'},
+    {q:'Bones in the human body?',a:'206',w:['196','216','180'],cat:'science'},
     {q:'Colors in a rainbow?',a:'7',w:['5','6','8'],cat:'science'},
-    {q:'Who wrote "War and Peace"?',a:'Tolstoy',w:['Dostoevsky','Gogol','Chekhov']},
-    {q:'Largest planet in solar system?',a:'Jupiter',w:['Saturn','Neptune','Uranus']},
-    {q:'Days in a leap year?',a:'366',cat:'science',w:['365','367','360']},
-    {q:'Largest ocean?',a:'Pacific',cat:'geo',w:['Atlantic','Indian','Arctic']},
-    {q:'Who painted the Mona Lisa?',a:'Leonardo da Vinci',cat:'history',w:['Michelangelo','Raphael','Botticelli']},
-    {q:'Chemical symbol for gold?',a:'Au',cat:'science',w:['Ag','Fe','Cu']},
-    {q:'Bones in human body?',a:'206',w:['196','216','180']},
-    {q:'Height of Mount Everest?',a:'8,848m',cat:'geo',w:['8,000m','9,000m','7,500m']},
-    {q:'Smallest ocean?',a:'Arctic',cat:'geo',w:['Indian','Atlantic','Southern']},
-    {q:'Players in a football team?',a:'11',cat:'sports',w:['10','12','9']},
+    {q:'Largest planet?',a:'Jupiter',w:['Saturn','Neptune','Uranus'],cat:'science'},
+    {q:'Days in a leap year?',a:'366',w:['365','367','360'],cat:'science'},
+    {q:'Water boiling point Celsius?',a:'100',w:['90','110','80'],cat:'science'},
+    {q:'Fastest land animal?',a:'Cheetah',w:['Lion','Horse','Ostrich'],cat:'science'},
+    {q:'Chemical symbol for water?',a:'H2O',w:['HO','H2O2','OH'],cat:'science'},
+    {q:'How many legs does a spider have?',a:'8',w:['6','10','4'],cat:'science'},
+    {q:'Center of our solar system?',a:'The Sun',w:['Earth','Jupiter','Moon'],cat:'science'},
+    {q:'Gas plants absorb?',a:'Carbon dioxide',w:['Oxygen','Nitrogen','Hydrogen'],cat:'science'},
+    {q:'Sides of a hexagon?',a:'6',w:['5','7','8'],cat:'science'},
+    {q:'Symbol of oxygen?',a:'O',w:['Ox','Om','Oz'],cat:'science'},
+    {q:'Hardest natural substance?',a:'Diamond',w:['Gold','Iron','Quartz'],cat:'science'},
+    {q:'Speed of light (approx)?',a:'300,000 km/s',w:['150,000 km/s','500,000 km/s','1,000 km/s'],cat:'science'},
+    {q:'How many teeth does an adult human have?',a:'32',w:['28','30','36'],cat:'science'},
+    {q:'What is H2O?',a:'Water',w:['Hydrogen','Oxygen','Salt'],cat:'science'},
+    {q:'How many chromosomes in human body?',a:'46',w:['23','48','44'],cat:'science'},
+    {q:'What is the powerhouse of the cell?',a:'Mitochondria',w:['Nucleus','Ribosome','Vacuole'],cat:'science'},
+    {q:'Normal human body temperature?',a:'37°C',w:['36°C','38°C','35°C'],cat:'science'},
+    {q:'Who wrote War and Peace?',a:'Tolstoy',w:['Dostoevsky','Gogol','Chekhov'],cat:'history'},
+    {q:'Who painted the Mona Lisa?',a:'Leonardo da Vinci',w:['Michelangelo','Raphael','Botticelli'],cat:'history'},
+    {q:'WW2 ended in?',a:'1945',w:['1943','1944','1946'],cat:'history'},
+    {q:'First man on the Moon?',a:'Neil Armstrong',w:['Buzz Aldrin','Yuri Gagarin','John Glenn'],cat:'history'},
+    {q:'Who invented the telephone?',a:'Alexander Graham Bell',w:['Thomas Edison','Nikola Tesla','Marconi'],cat:'history'},
+    {q:'First US president?',a:'George Washington',w:['Abraham Lincoln','Thomas Jefferson','John Adams'],cat:'history'},
+    {q:'Who discovered penicillin?',a:'Alexander Fleming',w:['Louis Pasteur','Marie Curie','Joseph Lister'],cat:'history'},
+    {q:'Titanic sank in?',a:'1912',w:['1910','1915','1918'],cat:'history'},
+    {q:'First human to orbit Earth?',a:'Yuri Gagarin',w:['Neil Armstrong','Buzz Aldrin','Alan Shepard'],cat:'history'},
+    {q:'Ancient wonder: Great Pyramid is in?',a:'Egypt',w:['Greece','Iraq','Turkey'],cat:'history'},
+    {q:'Who invented the lightbulb?',a:'Thomas Edison',w:['Nikola Tesla','Benjamin Franklin','James Watt'],cat:'history'},
+    {q:'Year the Berlin Wall fell?',a:'1989',w:['1987','1991','1985'],cat:'history'},
+    {q:'Players in football team?',a:'11',w:['10','12','9'],cat:'sports'},
+    {q:'Olympic flag rings?',a:'5',w:['4','6','7'],cat:'sports'},
+    {q:'Country that invented football?',a:'England',w:['Brazil','France','Germany'],cat:'sports'},
+    {q:'Marathon distance?',a:'42.195 km',w:['40 km','45 km','38 km'],cat:'sports'},
+    {q:'Basketball players on court per team?',a:'5',w:['6','4','7'],cat:'sports'},
+    {q:'Most World Cup wins?',a:'Brazil',w:['Germany','Italy','Argentina'],cat:'sports'},
+    {q:'How many points for a touchdown?',a:'6',w:['7','4','3'],cat:'sports'},
+    {q:'How many holes in a golf course?',a:'18',w:['9','12','24'],cat:'sports'},
+    {q:'What color is a banana?',a:'Yellow',w:['Green','Red','Blue'],cat:'kids'},
+    {q:'How many days in a week?',a:'7',w:['5','6','8'],cat:'kids'},
+    {q:'Sound a dog makes?',a:'Woof',w:['Meow','Moo','Oink'],cat:'kids'},
+    {q:'Fingers on two hands?',a:'10',w:['8','12','9'],cat:'kids'},
+    {q:'Animal with a trunk?',a:'Elephant',w:['Giraffe','Hippo','Rhino'],cat:'kids'},
+    {q:'Caterpillars become?',a:'Butterflies',w:['Birds','Bees','Beetles'],cat:'kids'},
+    {q:'Legs on a cat?',a:'4',w:['2','6','8'],cat:'kids'},
+    {q:'Color of grass?',a:'Green',w:['Blue','Yellow','Red'],cat:'kids'},
+    {q:'What is 2+2?',a:'4',w:['3','5','6'],cat:'kids'},
+    {q:'Months in a year?',a:'12',w:['10','11','13'],cat:'kids'},
+    {q:'How many strings on a guitar?',a:'6',w:['4','5','7'],cat:'music'},
+    {q:'Band with most album sales?',a:'The Beatles',w:['Rolling Stones','Led Zeppelin','ABBA'],cat:'music'},
+    {q:'Keys on a piano?',a:'88',w:['72','96','76'],cat:'music'},
+    {q:'King of Pop?',a:'Michael Jackson',w:['Elvis Presley','Prince','David Bowie'],cat:'music'},
+    {q:'How many musicians in a quartet?',a:'4',w:['3','5','2'],cat:'music'},
+  ],
+  he:[
+    {q:'מה בירת צרפת?',a:'פריז',w:['לונדון','ברלין','רומא'],cat:'geo'},
+    {q:'הים הגדול בעולם?',a:'האוקיינוס השקט',w:['האטלנטי','ההודי','הים התיכון'],cat:'geo'},
+    {q:'בירת יפן?',a:'טוקיו',w:['קיוטו','אוסקה','הירושימה'],cat:'geo'},
+    {q:'הנהר הארוך בעולם?',a:'הנילוס',w:['האמזונס','הינגצה','המיסיסיפי'],cat:'geo'},
+    {q:'בירת אוסטרליה?',a:'קנברה',w:['סידני','מלבורן','בריסביין'],cat:'geo'},
+    {q:'המדינה המאוכלסת ביותר?',a:'סין',w:['הודו','ארהב','רוסיה'],cat:'geo'},
+    {q:'המדינה הקטנה בעולם?',a:'ותיקן',w:['מונקו','סן מרינו','ליכטנשטיין'],cat:'geo'},
+    {q:'בירת ברזיל?',a:'ברזיליה',w:['ריו','סאו פאולו','סלבדור'],cat:'geo'},
+    {q:'מצרים באיזה יבשת?',a:'אפריקה',w:['אסיה','אירופה','אמריקה'],cat:'geo'},
+    {q:'בירת קנדה?',a:'אוטווה',w:['טורונטו','ונקובר','מונטריאול'],cat:'geo'},
+    {q:'כמה יבשות?',a:'7',w:['5','6','8'],cat:'geo'},
+    {q:'הגובה של הר האברסט?',a:'8,848 מטר',w:['8,000','9,000','7,500'],cat:'geo'},
+    {q:'בירת רוסיה?',a:'מוסקווה',w:['סנקט פטרבורג','קייב','מינסק'],cat:'geo'},
+    {q:'יער הגשם האמזונס בעיקר ב?',a:'ברזיל',w:['פרו','קולומביה','ונצואלה'],cat:'geo'},
+    {q:'בירת גרמניה?',a:'ברלין',w:['מינכן','המבורג','פרנקפורט'],cat:'geo'},
+    {q:'ההר הגבוה באפריקה?',a:'קילימנג׳רו',w:['הר קניה','הרי אטלס','רוונזורי'],cat:'geo'},
+    {q:'בירת קוריאה הדרומית?',a:'סיאול',w:['בוסן','אינצ׳ון','דאגו'],cat:'geo'},
+    {q:'סמל כימי של זהב?',a:'Au',w:['Ag','Fe','Cu'],cat:'science'},
+    {q:'כמה עצמות בגוף האדם?',a:'206',w:['196','216','180'],cat:'science'},
+    {q:'צבעים בקשת בענן?',a:'7',w:['5','6','8'],cat:'science'},
+    {q:'הכוכב הגדול במערכת השמש?',a:'צדק',w:['שבתאי','נפטון','אורנוס'],cat:'science'},
+    {q:'ימים בשנת עיבור?',a:'366',w:['365','367','360'],cat:'science'},
+    {q:'טמפרטורת רתיחה מים?',a:'100 מעלות',w:['90','110','80'],cat:'science'},
+    {q:'החיה המהירה ביותר?',a:'נמר ציד',w:['אריה','סוס','יענה'],cat:'science'},
+    {q:'סמל כימי של מים?',a:'H2O',w:['HO','H2O2','OH'],cat:'science'},
+    {q:'כמה רגליים לעכביש?',a:'8',w:['6','10','4'],cat:'science'},
+    {q:'גז שצמחים סופגים?',a:'פחמן דו חמצני',w:['חמצן','חנקן','מימן'],cat:'science'},
+    {q:'צלעות למשושה?',a:'6',w:['5','7','8'],cat:'science'},
+    {q:'החומר הקשה בטבע?',a:'יהלום',w:['זהב','ברזל','קוורץ'],cat:'science'},
+    {q:'כמה שיניים לאדם בוגר?',a:'32',w:['28','30','36'],cat:'science'},
+    {q:'מי כתב מלחמה ושלום?',a:'טולסטוי',w:['דוסטויבסקי','גוגול','צ׳כוב'],cat:'history'},
+    {q:'מי צייר את המונה ליזה?',a:'דה וינצ׳י',w:['מיכלאנג׳לו','רפאל','בוטיצ׳לי'],cat:'history'},
+    {q:'מלחמת העולם השנייה הסתיימה?',a:'1945',w:['1943','1944','1946'],cat:'history'},
+    {q:'האדם הראשון על הירח?',a:'ניל ארמסטרונג',w:['באז אולדרין','יורי גגרין','ג׳ון גלן'],cat:'history'},
+    {q:'מי המציא את הטלפון?',a:'גרהם בל',w:['אדיסון','טסלה','מרקוני'],cat:'history'},
+    {q:'הנשיא הראשון של ארהב?',a:'וושינגטון',w:['לינקולן','ג׳פרסון','אדמס'],cat:'history'},
+    {q:'מי גילה את הפניצילין?',a:'פלמינג',w:['פסטר','קירי','ליסטר'],cat:'history'},
+    {q:'הטיטאניק טבע ב?',a:'1912',w:['1910','1915','1918'],cat:'history'},
+    {q:'הראשון לסובב את כדור הארץ?',a:'יורי גגרין',w:['ניל ארמסטרונג','באז אולדרין','אלן שפרד'],cat:'history'},
+    {q:'מי המציא את הנורה?',a:'אדיסון',w:['טסלה','פרנקלין','ואט'],cat:'history'},
+    {q:'חומת ברלין נפלה ב?',a:'1989',w:['1987','1991','1985'],cat:'history'},
+    {q:'שחקנים בנבחרת כדורגל?',a:'11',w:['10','12','9'],cat:'sports'},
+    {q:'טבעות בדגל האולימפי?',a:'5',w:['4','6','7'],cat:'sports'},
+    {q:'כמה ק"מ מרתון?',a:'42.195',w:['40','45','38'],cat:'sports'},
+    {q:'שחקנים בכדורסל במגרש?',a:'5',w:['6','4','7'],cat:'sports'},
+    {q:'הכי הרבה גביעי עולם?',a:'ברזיל',w:['גרמניה','איטליה','ארגנטינה'],cat:'sports'},
+    {q:'כמה חורים בגולף?',a:'18',w:['9','12','24'],cat:'sports'},
+    {q:'צבע בננה?',a:'צהוב',w:['ירוק','אדום','כחול'],cat:'kids'},
+    {q:'כמה ימים בשבוע?',a:'7',w:['5','6','8'],cat:'kids'},
+    {q:'אצבעות בשתי ידיים?',a:'10',w:['8','12','9'],cat:'kids'},
+    {q:'לאיזה חיה יש חדק?',a:'פיל',w:['ג׳ירפה','היפו','קרנף'],cat:'kids'},
+    {q:'זחל הופך ל?',a:'פרפר',w:['ציפור','דבורה','חיפושית'],cat:'kids'},
+    {q:'רגליים לחתול?',a:'4',w:['2','6','8'],cat:'kids'},
+    {q:'צבע הדשא?',a:'ירוק',w:['כחול','צהוב','אדום'],cat:'kids'},
+    {q:'כמה חודשים בשנה?',a:'12',w:['10','11','13'],cat:'kids'},
+    {q:'מה זה 2+2?',a:'4',w:['3','5','6'],cat:'kids'},
+    {q:'מיתרים בגיטרה?',a:'6',w:['4','5','7'],cat:'music'},
+    {q:'מלך הפופ?',a:'מייקל ג׳קסון',w:['אלביס','פרינס','בואי'],cat:'music'},
+    {q:'מקשים בפסנתר?',a:'88',w:['72','96','76'],cat:'music'},
+    {q:'הלהקה שמכרה הכי הרבה?',a:'הביטלס',w:['רולינג סטונס','לד זפלין','אבבא'],cat:'music'},
+    {q:'כמה נגנים בקוורטט?',a:'4',w:['3','5','2'],cat:'music'},
   ],
 };
-
-
-// Extra trivia for ru/es/ar (fallback to en)
 const TQ_EXTRA={
   ru:[
     {q:'Столица России?',a:'Москва',w:['Санкт-Петербург','Новосибирск','Казань']},
@@ -2411,6 +2972,221 @@ applyT();
     <button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button>
     <button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button>
     <button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button>
+  </div>
+</div>
+
+
+<!-- VOTE SCREEN -->
+<div class="screen" id="voteScreen">
+  <div class="app-header">
+    <div class="header-logo">🗳️ <span id="txt-vote-h">Vote</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="voteCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()" id="txt-leave-vt">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><button class="float-theme-btn" onclick="openGuide()">❓</button><button class="float-theme-btn" onclick="openAbout()">ℹ️</button><div class="float-divider"></div><div class="color-dot active" style="background:#C9A84C;" onclick="setColorTheme('gold',this)" data-theme="gold"></div><div class="color-dot" style="background:#5B9BD5;" onclick="setColorTheme('blue',this)" data-theme="blue"></div><div class="color-dot" style="background:#4CAF7A;" onclick="setColorTheme('green',this)" data-theme="green"></div><div class="color-dot" style="background:#9B59B6;" onclick="setColorTheme('purple',this)" data-theme="purple"></div><div class="color-dot" style="background:#E05050;" onclick="setColorTheme('red',this)" data-theme="red"></div><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div id="voteHostArea" style="display:none;">
+        <div class="vote-input-area">
+          <div style="font-size:0.8rem;color:var(--gold);margin-bottom:8px;" id="txt-voteAsk">Ask a question:</div>
+          <input class="big-input" id="voteQ" style="margin-bottom:8px;" placeholder="Pizza or Sushi?">
+          <div style="display:flex;gap:8px;">
+            <input class="big-input" id="voteA" placeholder="Option A">
+            <input class="big-input" id="voteB" placeholder="Option B">
+          </div>
+          <button class="home-btn btn-gold" style="margin-top:8px;" onclick="launchVote()">🗳️ Launch Vote!</button>
+        </div>
+      </div>
+      <div id="voteQuestionArea" style="display:none;">
+        <div class="vote-question" id="voteQText"></div>
+        <div class="vote-options">
+          <div class="vote-opt" id="voteOptA" onclick="castVote('A')">
+            <span id="voteTextA">A</span>
+            <div style="text-align:right;min-width:60px;"><div class="vote-bar" id="voteBarA" style="width:0%"></div><span class="vote-count" id="votePctA">0%</span></div>
+          </div>
+          <div class="vote-opt" id="voteOptB" onclick="castVote('B')">
+            <span id="voteTextB">B</span>
+            <div style="text-align:right;min-width:60px;"><div class="vote-bar" id="voteBarB" style="width:0%"></div><span class="vote-count" id="votePctB">0%</span></div>
+          </div>
+        </div>
+        <div class="answered-bar" id="voteCount">0 voted</div>
+      </div>
+      <div class="chat-box" style="margin-top:12px;">
+        <div class="chat-messages" id="voteChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="voteChatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('vote')">
+          <button class="chat-send" onclick="sendChat('vote')">➤</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">Live</div>
+      <div id="voteSidebarScores"></div>
+      <div id="voteHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WHO AM I SCREEN -->
+<div class="screen" id="whoamiScreen">
+  <div class="app-header">
+    <div class="header-logo">🃏 <span id="txt-whoami-h">Who Am I</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="whoamiCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button><button class="float-lang-btn" onclick="setLang('ru',this)" data-lang="ru">🇷🇺</button><button class="float-lang-btn" onclick="setLang('es',this)" data-lang="es">🇪🇸</button><button class="float-lang-btn" onclick="setLang('ar',this)" data-lang="ar">🇸🇦</button></div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="whoami-card">
+        <div style="font-size:0.8rem;color:var(--text-dim);margin-bottom:6px;" id="txt-youAre">You are:</div>
+        <div class="whoami-identity hidden" id="whoamiIdentity">?</div>
+        <div style="font-size:0.75rem;color:var(--text-dim);" id="txt-whoamiHint">Others can see your identity — ask yes/no questions!</div>
+      </div>
+      <div id="whoamiGuesserArea">
+        <div style="text-align:center;color:var(--text-dim);font-size:0.85rem;padding:10px;" id="whoamiCurrentPlayer"></div>
+        <div class="yn-btns">
+          <button class="yn-btn yn-yes" onclick="whoamiAnswer(true)" id="btn-yes">✅ Yes</button>
+          <button class="yn-btn yn-no" onclick="whoamiAnswer(false)" id="btn-no">❌ No</button>
+        </div>
+      </div>
+      <div class="chat-box" style="margin-top:12px;">
+        <div class="chat-messages" id="whoamiChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="whoamiChatInput" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendChat('whoami')">
+          <button class="chat-send" onclick="sendChat('whoami')">➤</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">Players</div>
+      <div id="whoamiSidebarScores"></div>
+      <div id="whoamiHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOMB / HOT POTATO SCREEN -->
+<div class="screen" id="bombScreen">
+  <div class="app-header">
+    <div class="header-logo">💣 <span id="txt-bomb-h">Hot Potato</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="bombCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button></div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="bombRoundLbl">Round 1</span>
+          <span class="timer-num" id="bombTimerNum">30</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill danger" id="bombTimerFill" style="width:100%"></div></div>
+      </div>
+      <div class="bomb-display">
+        <div class="bomb-emoji" id="bombEmoji">💣</div>
+        <div class="bomb-holder" id="bombHolder">...</div>
+        <div style="font-size:0.85rem;color:var(--text-dim);margin-bottom:14px;" id="bombStatus">Waiting...</div>
+        <button class="bomb-pass" id="bombPassBtn" onclick="passBomb()" style="display:none;" id="txt-passBomb">🔥 PASS!</button>
+      </div>
+      <div class="chat-box">
+        <div class="chat-messages" id="bombChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="bombChatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('bomb')">
+          <button class="chat-send" onclick="sendChat('bomb')">➤</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">Players</div>
+      <div id="bombSidebarScores"></div>
+      <div id="bombHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WOULD YOU RATHER SCREEN -->
+<div class="screen" id="wyrScreen">
+  <div class="app-header">
+    <div class="header-logo">🔮 <span id="txt-wyr-h">Would You Rather</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="wyrCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button></div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="wyrRound">Round 1/10</span>
+          <span class="timer-num" id="wyrTimer">15</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill" id="wyrTimerFill" style="width:100%"></div></div>
+      </div>
+      <div class="wyr-vs">
+        <div class="wyr-opt" id="wyrOptA" onclick="voteWyr('A')"><span id="wyrTextA">Option A</span></div>
+        <div class="wyr-or">VS</div>
+        <div class="wyr-opt" id="wyrOptB" onclick="voteWyr('B')"><span id="wyrTextB">Option B</span></div>
+      </div>
+      <div class="answered-bar" id="wyrVoted">0 voted</div>
+      <div class="chat-box" style="margin-top:10px;">
+        <div class="chat-messages" id="wyrChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="wyrChatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('wyr')">
+          <button class="chat-send" onclick="sendChat('wyr')">➤</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">Scores</div>
+      <div id="wyrSidebarScores"></div>
+      <div id="wyrHostControls"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FASTEST FINGER SCREEN -->
+<div class="screen" id="fastestScreen">
+  <div class="app-header">
+    <div class="header-logo">⚡ <span id="txt-fastest-h">Fastest Finger</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="fastestCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row"><button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button><div class="float-divider"></div><button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button><button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button></div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div class="timer-section">
+        <div class="timer-row">
+          <span class="timer-label" id="fastestQLbl">Q 1/10</span>
+          <span class="timer-num" id="fastestTimer">5</span>
+        </div>
+        <div class="timer-bar"><div class="timer-fill danger" id="fastestTimerFill" style="width:100%"></div></div>
+      </div>
+      <div class="fastest-question" id="fastestQText">Get ready...</div>
+      <button class="fastest-buzz" id="fastestBuzzBtn" onclick="buzzIn()" style="display:none;">⚡ BUZZ!</button>
+      <div class="fastest-buzzed" id="fastestBuzzed" style="display:none;"></div>
+      <div class="answered-bar" id="fastestStatus"></div>
+      <div class="chat-box" style="margin-top:10px;">
+        <div class="chat-messages" id="fastestChatMsgs"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="fastestChatInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('fastest')">
+          <button class="chat-send" onclick="sendChat('fastest')">➤</button>
+        </div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">Scores</div>
+      <div id="fastestSidebarScores"></div>
+      <div id="fastestHostControls"></div>
+    </div>
   </div>
 </div>
 
