@@ -481,6 +481,15 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
             <button class="settings-opt" onclick="setSetting('timeQ',0,this)" id="txt-noLimit">∞</button>
           </div>
         </div>
+        <div class="settings-row" id="bombDurRow" style="display:none;">
+          <span class="settings-label" id="txt-bombDurLabel">⏱️ Duration</span>
+          <div class="settings-opts" id="settingsBombDur">
+            <button class="settings-opt" onclick="setSetting('bombDur',15,this)">15s</button>
+            <button class="settings-opt active" onclick="setSetting('bombDur',30,this)">30s</button>
+            <button class="settings-opt" onclick="setSetting('bombDur',45,this)">45s</button>
+            <button class="settings-opt" onclick="setSetting('bombDur',60,this)">60s</button>
+          </div>
+        </div>
         <div class="settings-row">
           <span class="settings-label" id="txt-categoryLabel">Category</span>
           <div class="settings-opts" id="settingsCategory">
@@ -779,6 +788,7 @@ const T = {
     muted:'You are muted',
     noLimit:'No Limit',
     broadcast:'Message All',
+    bombDurLabel:'Bomb Duration',
     vote:'Vote',
     voteAsk:'Ask a question:',
     wyrHostTitle:'CREATE A QUESTION',wyrCustom:'Custom',wyrPickQ:'Pick a question:',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
@@ -833,6 +843,7 @@ const T = {
     muted:'אתה מושתק',
     noLimit:'ללא הגבלה',
     broadcast:'הודעה לכולם',
+    bombDurLabel:'זמן הפצצה',
     vote:'הצבעה',
     voteAsk:'שאל שאלה:',
     wyrHostTitle:'צור שאלה',wyrCustom:'מותאם אישית',wyrPickQ:'בחר שאלה:',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
@@ -887,6 +898,7 @@ const T = {
     muted:'Вы в муте',
     noLimit:'Без лимита',
     broadcast:'Сообщение всем',
+    bombDurLabel:'Время бомбы',
     vote:'Голосование',
     voteAsk:'Задай вопрос:',
     wyrHostTitle:'СОЗДАТЬ ВОПРОС',wyrCustom:'Свой',wyrPickQ:'Выбери вопрос:',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
@@ -941,6 +953,7 @@ const T = {
     muted:'Estas silenciado',
     noLimit:'Sin limite',
     broadcast:'Mensaje a todos',
+    bombDurLabel:'Duracion bomba',
     vote:'Votacion',
     voteAsk:'Haz una pregunta:',
     wyrHostTitle:'CREAR PREGUNTA',wyrCustom:'Propio',wyrPickQ:'Elige pregunta:',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
@@ -995,6 +1008,7 @@ const T = {
     muted:'انت مكتوم',
     noLimit:'بلا حد',
     broadcast:'رسالة للجميع',
+    bombDurLabel:'مدة القنبلة',
     vote:'تصويت',
     voteAsk:'اسأل سؤالاً:',
     wyrHostTitle:'انشئ سؤالاً',wyrCustom:'مخصص',wyrPickQ:'اختر سؤالاً:',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
@@ -1357,7 +1371,7 @@ window.createRoom=async function(){
 };
 
 // ===== ROOM SETTINGS =====
-var roomSettings={numQ:10,timeQ:20,category:'all'};
+var roomSettings={numQ:10,timeQ:20,category:'all',bombDur:30};
 
 window.setSetting=function(key,val,btn){
   roomSettings[key]=val;
@@ -1379,7 +1393,11 @@ window.selectGame=function(g){
   db.ref('rooms/'+roomCode).update({game:g});
   // Show/hide settings panel (only relevant for trivia)
   var sp=document.getElementById('roomSettingsPanel');
-  if(sp)sp.style.display=(g==='trivia'?'':'none');
+  if(sp)sp.style.display=(g==='trivia'||g==='bomb'?'':'none');
+  var bd=document.getElementById('bombDurRow');
+  if(bd)bd.style.display=(g==='bomb'?'':'none');
+  var tqRows=['settingsNumQ','settingsTime','txt-numQuestions','txt-timePerQ','settingsCategory','txt-categoryLabel'];
+  tqRows.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=(g==='trivia'?'':'none');});
 };
 
 window.shareVia=function(platform){
@@ -2671,7 +2689,8 @@ function loadWyr(room){
   if(vs==='host_input'&&isHost) renderWyrList();
   renderSidebarScores('wyrSidebarScores',room.wyrPlayers||scores,{});
   renderHostControls('wyrHostControls',
-    isHost?`<button class="host-ctrl-btn primary" onclick="nextWyrRound()">${t('nextRound')} ▶</button>`:'');
+    isHost?`<button class="host-ctrl-btn primary" onclick="nextWyrRound()">${t('nextRound')} ▶</button>
+    <button class="host-ctrl-btn" onclick="endWyrSession()" style="border-color:var(--green);color:var(--green);">🏁 End & Results</button>`:'');
   listenChat('wyr');
 }
 
@@ -2688,6 +2707,14 @@ window.launchWyr=function(){
   });
 };
 
+window.endWyrSession=async function(){
+  // Show summary and end
+  const snap=await db.ref('rooms/'+roomCode).once('value');
+  const room=snap.val();
+  const fs={};Object.entries(room.wyrPlayers||{}).forEach(([id,p])=>fs[id]=p.score||0);
+  db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+};
+
 window.voteWyr=function(choice){
   db.ref('rooms/'+roomCode+'/wyrAnswers/'+myId).once('value').then(function(s){
     if(s.val())return;
@@ -2699,6 +2726,11 @@ window.voteWyr=function(choice){
 
 window.nextWyrRound=function(){
   clearInterval(wyrTimerInterval);
+  // Save round to history first
+  db.ref('rooms/'+roomCode+'/wyrHistory').push({
+    q:document.getElementById('wyrQText')?document.getElementById('wyrQText').textContent:'',
+    ts:Date.now()
+  });
   document.getElementById('wyrQInput').value='';
   document.getElementById('wyrAInput').value='';
   document.getElementById('wyrBInput').value='';
@@ -2809,7 +2841,7 @@ var bombTimerInterval=null;
 
 function initBomb(){
   const players=Object.keys(scores);
-  const duration=25+Math.floor(Math.random()*15);
+  const duration=roomSettings.bombDur||30;
   const ps={};Object.entries(scores).forEach(([id,p])=>ps[id]={...p,score:0,alive:true});
   db.ref('rooms/'+roomCode).update({
     status:'bomb',bombHolder:players[0],bombDuration:duration,
@@ -2871,9 +2903,17 @@ window.passBomb=async function(){
   const alivePlayers=Object.keys(room.bombPlayers||{}).filter(id=>id!==myId&&(room.bombPlayers[id].alive!==false));
   if(!alivePlayers.length)return;
   const next=alivePlayers[Math.floor(Math.random()*alivePlayers.length)];
-  const newDur=Math.max(8,(room.bombDuration||30)-2);
+  // PRESERVE remaining time - calculate how much time is left and use that
+  const elapsed=(Date.now()-(room.bombStart||Date.now()))/1000;
+  const remaining=Math.max(5,(room.bombDuration||30)-elapsed);
   playSound('wrong');
-  db.ref('rooms/'+roomCode).update({bombHolder:next,bombStart:Date.now(),bombDuration:newDur,bombExploded:null});
+  // bombStart set to "now - 0" but duration = remaining, so timer continues from where it was
+  db.ref('rooms/'+roomCode).update({
+    bombHolder:next,
+    bombStart:Date.now(),
+    bombDuration:remaining,
+    bombExploded:null
+  });
 };
 
 async function bombExplode(room){
