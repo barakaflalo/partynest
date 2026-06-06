@@ -8,6 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <!-- build:1780682844 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 38'><polygon points='19,2 35,10.5 35,27.5 19,36 3,27.5 3,10.5' fill='%23111' stroke='%23C9A84C' stroke-width='1.5'/><text x='19' y='25' text-anchor='middle' font-family='serif' font-size='13' fill='%23C9A84C'>P</text></svg>">
 <title>PartyNest — Multiplayer Games</title>
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
@@ -229,13 +230,14 @@ body.rtl .home-top-btns{right:auto;left:14px;}
 
 
 /* ===== SETTINGS BAR (sticky below header) ===== */
-.float-settings{background:var(--dark);border-bottom:1px solid var(--dark3);padding:6px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:52px;z-index:49;flex-shrink:0;}
-.float-settings-row{display:flex;gap:5px;align-items:center;}
-.float-lang-btn{background:none;border:1px solid transparent;cursor:pointer;font-size:1rem;opacity:0.55;transition:all 0.15s;padding:2px 5px;border-radius:6px;}
-.float-lang-btn:hover,.float-lang-btn.active{opacity:1;border-color:var(--gold-dim);background:var(--dark3);}
-.float-theme-btn{background:none;border:1px solid var(--dark3);cursor:pointer;font-size:0.95rem;padding:3px 8px;border-radius:6px;color:var(--text-dim);}
+.float-settings{background:var(--dark2);border-bottom:1px solid var(--gold-dim);padding:7px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:52px;z-index:49;flex-shrink:0;}
+.float-settings-row{display:flex;gap:4px;align-items:center;}
+.float-lang-btn{background:var(--dark3);border:1px solid var(--border,#333);cursor:pointer;font-size:0.85rem;opacity:0.7;transition:all 0.15s;padding:3px 7px;border-radius:6px;color:var(--text);font-family:'Heebo',sans-serif;font-weight:600;}
+.float-lang-btn:hover{opacity:1;border-color:var(--gold-dim);}
+.float-lang-btn.active{opacity:1;border-color:var(--gold);background:var(--gold-dim);color:#0A0A0A;font-weight:700;}
+.float-theme-btn{background:var(--dark3);border:1px solid var(--border,#333);cursor:pointer;font-size:0.9rem;padding:4px 9px;border-radius:6px;color:var(--text-dim);transition:all 0.15s;}
 .float-theme-btn:hover{border-color:var(--gold-dim);color:var(--gold);}
-.float-divider{width:1px;height:18px;background:var(--dark3);margin:0 4px;}
+.float-divider{width:1px;height:18px;background:var(--gold-dim);opacity:0.4;margin:0 3px;}
 
 /* ===== COLOR THEMES ===== */
 body.theme-blue{--gold:#5B9BD5;--gold-dim:#3A6A9A;--gold-light:#7BB8F0;}
@@ -776,17 +778,19 @@ function t(k){return(T[lang]||T.en)[k]||(T.en[k])||k;}
 window.setLang=function(l,btn){
   lang=l;
   localStorage.setItem('pn_lang',l);
-  // Update home lang pills
-  document.querySelectorAll('.lang-pill').forEach(function(b){b.classList.remove('active');});
-  if(btn&&btn.classList.contains('lang-pill'))btn.classList.add('active');
-  // Update ALL lang buttons (home pills + all settings bars)
+  // Update ALL lang buttons
   document.querySelectorAll('.float-lang-btn, .lang-pill').forEach(function(b){
-    b.classList.toggle('active', b.dataset.lang===l || (b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf("'"+l+"'")>=0));
+    var isActive = b.dataset.lang===l || (b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf("'"+l+"'")>=0);
+    b.classList.toggle('active', isActive);
   });
   var rtl=['he','ar'].includes(l);
   document.documentElement.lang=l;
   document.documentElement.dir=rtl?'rtl':'ltr';
   document.body.classList.toggle('rtl',rtl);
+  // If host in lobby, save lang to Firebase
+  if(isHost&&roomCode){
+    try{db.ref('rooms/'+roomCode).update({lang:l});}catch(e){}
+  }
   applyT();
 };
 
@@ -872,6 +876,11 @@ document.addEventListener('DOMContentLoaded', function() {
       roomCode=''; return;
     }
     var room=snap.val();
+    // Restore room's lang if different
+    if(room.lang&&room.lang!==lang&&!isHost){
+      var langBtn2=document.querySelector('.float-lang-btn[data-lang="'+room.lang+'"]');
+      setLang(room.lang,langBtn2);
+    }
     var prevScore=(room.players&&room.players[myId])?room.players[myId].score||0:0;
     // Remove duplicates with same name
     // Remove other entries with same name (duplicates from old sessions)
@@ -1037,7 +1046,7 @@ window.createRoom=async function(){
   var roomDbRef = db.ref('rooms/'+roomCode);
   // Don't delete room on disconnect - host can rejoin
   await roomDbRef.set({
-    host:myId,game:'trivia',status:'lobby',
+    host:myId,game:'trivia',status:'lobby',lang:lang,
     players:{[myId]:{name:myName,score:0,host:true}},
     created:Date.now()
   });
@@ -1117,6 +1126,12 @@ window.joinRoom=async function(){
   localStorage.setItem('pn_room',code);
   const snap=await db.ref('rooms/'+code).once('value');
   if(!snap.exists()){document.getElementById('joinErr').textContent=t('roomNotFound');return;}
+  // Inherit host lang
+  var rd=snap.val();
+  if(rd&&rd.lang&&rd.lang!==lang){
+    var lb=document.querySelector('.float-lang-btn[data-lang="'+rd.lang+'"]');
+    setLang(rd.lang,lb);
+  }
   scores[myId]={name:myName,score:0};
   await db.ref('rooms/'+code+'/players/'+myId).set({name:myName,score:0});
   document.getElementById('lobbyCodeDisp2').textContent=code;
