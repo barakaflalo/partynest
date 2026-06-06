@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
+<meta name="description" content="PartyNest — Multiplayer party games. Join with a 4-digit code. Trivia, Forbidden Word, Drawing.">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- build:1780682844 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>PartyNest — משחקים מרובי שחקנים</title>
+<title>PartyNest — Multiplayer Games</title>
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -22,7 +23,8 @@
   --green:#4CAF7A;--red:#E05050;--blue:#4A8FD4;--purple:#9B59B6;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;direction:rtl;overflow-x:hidden;overscroll-behavior-y:contain;}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;direction:ltr;overflow-x:hidden;overscroll-behavior-y:contain;transition:background 0.3s,color 0.3s;}
+body.rtl{direction:rtl;}
 body.ltr{direction:ltr;}
 
 /* ===== SCREENS ===== */
@@ -196,24 +198,70 @@ body.ltr .game-sidebar{border-right:none;border-left:1px solid var(--dark3);}
 @keyframes pop{0%{opacity:1;transform:translate(-50%,-50%) scale(0.5);}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2);}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5);}}
 
 @media(max-width:480px){.answers-grid{grid-template-columns:1fr;}.game-opt-icon{font-size:1.4rem;}}
+
+/* DAY MODE */
+body.day{
+  --bg:#F5F0E8;--dark:#FFFFFF;--dark2:#F0EAE0;--dark3:#E8E0D0;--dark4:#DDD5C5;
+  --text:#1A1200;--text-dim:#888;
+}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal-box{background:var(--dark);border:1px solid var(--gold-dim);border-radius:16px;padding:24px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;}
+.modal-title{font-family:'Cinzel',serif;font-size:1.3rem;color:var(--gold);margin-bottom:16px;text-align:center;}
+.modal-close{float:right;background:none;border:none;color:var(--text-dim);font-size:1.3rem;cursor:pointer;line-height:1;}
+body.rtl .modal-close{float:left;}
+.guide-step{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;padding:10px;background:var(--dark2);border-radius:10px;}
+.guide-icon{font-size:1.6rem;flex-shrink:0;}
+.guide-step-title{font-weight:700;color:var(--gold);font-size:0.88rem;margin-bottom:3px;}
+.guide-step-desc{font-size:0.8rem;color:var(--text-dim);line-height:1.5;}
+.about-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--dark3);font-size:0.85rem;}
+.about-row:last-child{border-bottom:none;}
+.about-label{color:var(--text-dim);}
+.about-val{color:var(--gold);font-weight:600;}
+.about-link{color:#4A8FD4;text-decoration:none;}
+/* ICON BUTTONS */
+.home-top-btns{position:fixed;top:14px;right:14px;display:flex;gap:6px;z-index:100;}
+body.rtl .home-top-btns{right:auto;left:14px;}
+.icon-btn{background:var(--dark2);border:1px solid var(--dark3);color:var(--text-dim);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;}
+.icon-btn:hover{border-color:var(--gold-dim);color:var(--gold);}
+/* PODIUM always LTR */
+.podium-wrap{direction:ltr;}
+
 </style>
 </head>
 <body>
 
+<!-- MODALS -->
+<div class="modal-overlay" id="guideModal" style="display:none;">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('guideModal')">✕</button>
+    <div class="modal-title" id="guideModalTitle">How to Play</div>
+    <div id="guideContent"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="aboutModal" style="display:none;">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('aboutModal')">✕</button>
+    <div class="modal-title">PartyNest</div>
+    <div id="aboutContent"></div>
+  </div>
+</div>
+
 <!-- HOME -->
 <div class="screen active" id="homeScreen">
-  <div class="home-wrap">
+  <div class="home-top-btns"><button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Theme">🌙</button><button class="icon-btn" onclick="openGuide()" title="Guide">❓</button><button class="icon-btn" onclick="openAbout()" title="About">ℹ️</button></div>
+    <div class="home-wrap">
     <div class="logo-wrap">
       <svg width="64" height="64" viewBox="0 0 38 38"><polygon points="19,2 35,10.5 35,27.5 19,36 3,27.5 3,10.5" fill="#111" stroke="#C9A84C" stroke-width="1.5"/><text x="19" y="25" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#C9A84C">P</text></svg>
       <div class="logo-title">PartyNest</div>
       <div class="logo-tagline" data-i="tagline">משחקים מרובי שחקנים</div>
     </div>
     <div class="lang-row">
-      <button class="lang-pill active" onclick="setLang('he')">🇮🇱 עב</button>
-      <button class="lang-pill" onclick="setLang('en')">🇬🇧 EN</button>
-      <button class="lang-pill" onclick="setLang('ru')">🇷🇺 РУ</button>
-      <button class="lang-pill" onclick="setLang('es')">🇪🇸 ES</button>
-      <button class="lang-pill" onclick="setLang('ar')">🇸🇦 عر</button>
+      <button class="lang-pill active" onclick="setLang('en',this)">🇬🇧 EN</button>
+      <button class="lang-pill" onclick="setLang('he',this)">🇮🇱 עב</button>
+      <button class="lang-pill" onclick="setLang('ru',this)">🇷🇺 РУ</button>
+      <button class="lang-pill" onclick="setLang('es',this)">🇪🇸 ES</button>
+      <button class="lang-pill" onclick="setLang('ar',this)">🇸🇦 عر</button>
     </div>
     <button class="home-btn btn-gold" onclick="goTo('createName')" data-i="createRoom">🎮 צור חדר</button>
     <button class="home-btn btn-outline" onclick="goTo('joinName')" data-i="joinRoom">🚪 הצטרף לחדר</button>
@@ -511,117 +559,201 @@ const db = firebase.database();
 
 // ===== I18N =====
 const T = {
-  he:{tagline:'משחקים מרובי שחקנים',createRoom:'🎮 צור חדר',joinRoom:'🚪 הצטרף לחדר',
-    howItWorks:'כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים\n3 משחקים: טריוויה, מילה אסורה, ציור',
-    back:'← חזור',whatsYourName:'מה השם שלך?',nameWillShow:'השם יופיע ללוח הניקוד של כולם',
-    createAndGo:'צור חדר ➜',joinTitle:'הצטרף למשחק',enterCode:'הכנס קוד 4 ספרות מהמארח',
-    joinBtn:'הצטרף ➜',roomCode:'קוד החדר',shareCode:'שתף קוד זה עם השחקנים',
-    players:'שחקנים',chooseGame:'בחר משחק',trivia:'טריוויה',forbidden:'מילה אסורה',draw:'ציור',
-    startGame:'התחל משחק ▶',leave:'יציאה',waitingForHost:'ממתין למארח...',
-    hostWillStart:'המארח יתחיל את המשחק בקרוב',liveScores:'ניקוד חי',
-    yourTurnDescribe:'תורך לתאר!',dontSay:'אסור לומר:',sendGuess:'שלח',
-    wordToGuess:'נחשו את המילה:',clear:'נקה',results:'תוצאות',gameOver:'המשחק הסתיים!',
-    playAgain:'שחק שוב 🔄',host:'מארח',kicked:'הוצאת מהמשחק',
-    roomNotFound:'חדר לא נמצא',nameRequired:'חובה להכניס שם',codeRequired:'חובה להכניס קוד',
-    question:'שאלה',of:'מתוך',answered:'ענו',waitOthers:'ממתין לשאר...',
-    correctSound:'✅ נכון!',wrongSound:'❌ שגוי',timeUp:'⏰ הזמן נגמר!',
-    round:'סיבוב',describing:'מתאר',guessing:'מנחש',
-    nextRound:'סיבוב הבא',endGame:'סיים משחק',stopGame:'עצור משחק',
-    guessedCorrect:'✅ ניחשת נכון!',alreadyGuessed:'כבר ניחשת',
-    drawerLabel:'מצייר:',chat:'צ׳אט',send:'שלח',
-    hostKick:'הוצא',pleaseWait:'ממתין...',connecting:'מתחבר...'},
-  en:{tagline:'Multiplayer Games',createRoom:'🎮 Create Room',joinRoom:'🚪 Join Room',
+  en:{
+    tagline:'Multiplayer Games',createRoom:'🎮 Create Room',joinRoom:'🚪 Join Room',
     howItWorks:'Join with a 4-digit code • Up to 100 players\n3 games: Trivia, Forbidden Word, Drawing',
-    back:'← Back',whatsYourName:'What’s your name?',nameWillShow:'Name will appear on scoreboard',
-    createAndGo:'Create Room ➜',joinTitle:'Join a Game',enterCode:'Enter the 4-digit code from the host',
+    back:'← Back',whatsYourName:"What's your name?",namePlaceholder:'Enter name...',
+    nameWillShow:'Your name will appear on the scoreboard',
+    createAndGo:'Create Room ➜',joinTitle:'Join a Game',codePlaceholder:'CODE',
+    enterCode:'Enter the 4-digit code from the host',
     joinBtn:'Join ➜',roomCode:'Room Code',shareCode:'Share this code with players',
+    copyLink:'🔗 Copy',share:'📤 Share',copied:'✅ Copied!',
     players:'Players',chooseGame:'Choose Game',trivia:'Trivia',forbidden:'Forbidden Word',draw:'Drawing',
-    startGame:'Start Game ▶',leave:'Leave',waitingForHost:'Waiting for host...',
-    hostWillStart:'Host will start the game soon',liveScores:'Live Scores',
-    yourTurnDescribe:'Your turn to describe!',dontSay:'Do not say:',sendGuess:'Send',
-    wordToGuess:'Guess the word:',clear:'Clear',results:'Results',gameOver:'Game Over!',
-    playAgain:'Play Again 🔄',host:'Host',kicked:'You were kicked',
+    startGame:'Start Game ▶',leave:'Leave',leaveRoom:'Leave Room',
+    waitingForHost:'Waiting for host...',hostWillStart:'The host will start the game soon',
+    liveScores:'Live Scores',yourTurnDescribe:'Your turn to describe!',dontSay:'Do not say:',
+    sendGuess:'Send',guessDraw:'Guess the drawing...',guessWord:'Guess...',
+    messagePlaceholder:'Message...',send:'Send',clear:'Clear',
+    results:'Results',gameOver:'Game Over!',playAgain:'Play Again 🔄',
+    host:'Host',kicked:'You were removed from the room',
     roomNotFound:'Room not found',nameRequired:'Please enter a name',codeRequired:'Please enter a code',
     question:'Question',of:'of',answered:'answered',waitOthers:'Waiting for others...',
-    correctSound:'✅ Correct!',wrongSound:'❌ Wrong',timeUp:'⏰ Time’s up!',
-    round:'Round',describing:'describing',guessing:'guessing',
-    nextRound:'Next Round',endGame:'End Game',stopGame:'Stop Game',
-    guessedCorrect:'✅ You guessed it!',alreadyGuessed:'Already guessed',
-    drawerLabel:'Drawing:',chat:'Chat',send:'Send',
-    hostKick:'Kick',pleaseWait:'Please wait...',connecting:'Connecting...'},
-  ru:{tagline:'Многопользовательские игры',createRoom:'🎮 Создать комнату',joinRoom:'🚪 Войти',
+    correctAnim:'✅ Correct!',wrongAnim:'❌ Wrong',timeUpAnim:'⏰ Time up!',
+    round:'Round',describing:'is describing',guessing:'guessing',
+    nextRound:'Next Round',endGame:'End Game',
+    guessedCorrect:'✅ You guessed it!',alreadyGuessed:'Already guessed',drawerLabel:'Drawing:',
+    hostKick:'Kick',pleaseWait:'Please wait...',connecting:'Connecting...',
+    leaveConfirm:'Leave the game?',endConfirm:'End the game?',drawWord:'Draw the word!',
+    triviaStarted:'🧠 Trivia started!',forbiddenStarted:'🚫 Forbidden Word started!',drawStarted:'🎨 Drawing started!',
+    guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
+    guideTitle:'How to Play',
+    guideStep1Title:'Create or Join a Room',guideStep1Desc:'The host creates a room and gets a 4-digit code. Players join by entering the code or scanning the QR.',
+    guideStep2Title:'Choose a Game',guideStep2Desc:'The host picks one of 3 games: Trivia, Forbidden Word, or Drawing.',
+    guideStep3Title:'Play Together',guideStep3Desc:'Everyone plays at the same time on their own device. Answer fast for more points!',
+    guideStep4Title:'See the Results',guideStep4Desc:'At the end, a podium shows the top 3 players. Play again with the same room!',
+    guideStep5Title:'Share the Room',guideStep5Desc:'Use WhatsApp or Telegram to invite friends directly.',
+    aboutDev:'Developer',aboutVersion:'Version',aboutContact:'Contact',
+  },
+  he:{
+    tagline:'משחקים מרובי שחקנים',createRoom:'🎮 צור חדר',joinRoom:'🚪 הצטרף לחדר',
+    howItWorks:'כולם מצטרפים עם קוד 4 ספרות • עד 100 שחקנים\n3 משחקים: טריוויה, מילה אסורה, ציור',
+    back:'← חזור',whatsYourName:'מה השם שלך?',namePlaceholder:'הכנס שם...',
+    nameWillShow:'השם יופיע ללוח הניקוד של כולם',
+    createAndGo:'צור חדר ➜',joinTitle:'הצטרף למשחק',codePlaceholder:'קוד',
+    enterCode:'הכנס קוד 4 ספרות מהמארח',
+    joinBtn:'הצטרף ➜',roomCode:'קוד החדר',shareCode:'שתף קוד זה עם השחקנים',
+    copyLink:'🔗 העתק',share:'📤 שתף',copied:'✅ הועתק!',
+    players:'שחקנים',chooseGame:'בחר משחק',trivia:'טריוויה',forbidden:'מילה אסורה',draw:'ציור',
+    startGame:'התחל משחק ▶',leave:'יציאה',leaveRoom:'עזוב חדר',
+    waitingForHost:'ממתין למארח...',hostWillStart:'המארח יתחיל את המשחק בקרוב',
+    liveScores:'ניקוד חי',yourTurnDescribe:'תורך לתאר!',dontSay:'אסור לומר:',
+    sendGuess:'שלח',guessDraw:'נחש את הציור...',guessWord:'נחש...',
+    messagePlaceholder:'הודעה...',send:'שלח',clear:'נקה',
+    results:'תוצאות',gameOver:'המשחק הסתיים!',playAgain:'שחק שוב 🔄',
+    host:'מארח',kicked:'הוצאת מהמשחק',
+    roomNotFound:'חדר לא נמצא',nameRequired:'חובה להכניס שם',codeRequired:'חובה להכניס קוד',
+    question:'שאלה',of:'מתוך',answered:'ענו',waitOthers:'ממתין לשאר...',
+    correctAnim:'✅ נכון!',wrongAnim:'❌ שגוי',timeUpAnim:'⏰ הזמן נגמר!',
+    round:'סיבוב',describing:'מתאר',guessing:'מנחש',
+    nextRound:'סיבוב הבא',endGame:'סיים משחק',
+    guessedCorrect:'✅ ניחשת נכון!',alreadyGuessed:'כבר ניחשת',drawerLabel:'מצייר:',
+    hostKick:'הוצא',pleaseWait:'ממתין...',connecting:'מתחבר...',
+    leaveConfirm:'לצאת מהמשחק?',endConfirm:'לסיים את המשחק?',drawWord:'צייר את המילה!',
+    triviaStarted:'🧠 טריוויה התחילה!',forbiddenStarted:'🚫 מילה אסורה התחילה!',drawStarted:'🎨 ציור התחיל!',
+    guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
+    guideTitle:'איך משחקים',
+    guideStep1Title:'צור או הצטרף לחדר',guideStep1Desc:'המארח פותח חדר ומקבל קוד 4 ספרות. שחקנים מצטרפים עם הקוד או בסריקת QR.',
+    guideStep2Title:'בחר משחק',guideStep2Desc:'המארח בוחר אחד מ-3 משחקים: טריוויה, מילה אסורה, או ציור.',
+    guideStep3Title:'שחקו יחד',guideStep3Desc:'כולם משחקים בו זמנית על המכשיר שלהם. ענה מהר לנקודות נוספות!',
+    guideStep4Title:'ראו את התוצאות',guideStep4Desc:'בסוף מוצג דרגש עם 3 המובילים. אפשר לשחק שוב באותו חדר!',
+    guideStep5Title:'שתף את החדר',guideStep5Desc:'השתמש בכפתורי WhatsApp או Telegram להזמין חברים ישירות.',
+    aboutDev:'מפתח',aboutVersion:'גרסה',aboutContact:'צור קשר',
+  },
+  ru:{
+    tagline:'Многопользовательские игры',createRoom:'🎮 Создать комнату',joinRoom:'🚪 Войти',
     howItWorks:'Входите по 4-значному коду • До 100 игроков\n3 игры: Викторина, Запретное слово, Рисование',
-    back:'← Назад',whatsYourName:'Как тебя зовут?',nameWillShow:'Имя появится на табло',
-    createAndGo:'Создать ➜',joinTitle:'Присоединиться',enterCode:'Введи 4-значный код хоста',
+    back:'← Назад',whatsYourName:'Как тебя зовут?',namePlaceholder:'Введите имя...',
+    nameWillShow:'Имя появится на табло',
+    createAndGo:'Создать ➜',joinTitle:'Присоединиться',codePlaceholder:'КОД',
+    enterCode:'Введи 4-значный код хоста',
     joinBtn:'Войти ➜',roomCode:'Код комнаты',shareCode:'Поделись кодом с игроками',
+    copyLink:'🔗 Копировать',share:'📤 Поделиться',copied:'✅ Скопировано!',
     players:'Игроки',chooseGame:'Выбери игру',trivia:'Викторина',forbidden:'Запретное слово',draw:'Рисование',
-    startGame:'Начать ▶',leave:'Выйти',waitingForHost:'Ждём хоста...',
-    hostWillStart:'Хост скоро начнёт',liveScores:'Очки',
-    yourTurnDescribe:'Твоя очередь описывать!',dontSay:'Нельзя говорить:',sendGuess:'Отправить',
-    wordToGuess:'Угадай слово:',clear:'Очистить',results:'Результаты',gameOver:'Игра окончена!',
-    playAgain:'Играть снова 🔄',host:'Хост',kicked:'Вас выгнали',
+    startGame:'Начать ▶',leave:'Выйти',leaveRoom:'Покинуть комнату',
+    waitingForHost:'Ждём хоста...',hostWillStart:'Хост скоро начнёт',
+    liveScores:'Очки',yourTurnDescribe:'Твоя очередь описывать!',dontSay:'Нельзя говорить:',
+    sendGuess:'Отправить',guessDraw:'Угадай рисунок...',guessWord:'Угадай...',
+    messagePlaceholder:'Сообщение...',send:'Отправить',clear:'Очистить',
+    results:'Результаты',gameOver:'Игра окончена!',playAgain:'Играть снова 🔄',
+    host:'Хост',kicked:'Вас выгнали',
     roomNotFound:'Комната не найдена',nameRequired:'Введите имя',codeRequired:'Введите код',
     question:'Вопрос',of:'из',answered:'ответили',waitOthers:'Ждём других...',
-    correctSound:'✅ Правильно!',wrongSound:'❌ Неверно',timeUp:'⏰ Время вышло!',
+    correctAnim:'✅ Правильно!',wrongAnim:'❌ Неверно',timeUpAnim:'⏰ Время вышло!',
     round:'Раунд',describing:'описывает',guessing:'угадывает',
-    nextRound:'Следующий раунд',endGame:'Завершить',stopGame:'Стоп',
-    guessedCorrect:'✅ Угадал!',alreadyGuessed:'Уже угадал',
-    drawerLabel:'Рисует:',chat:'Чат',send:'Отправить',
-    hostKick:'Выгнать',pleaseWait:'Подожди...',connecting:'Подключение...'},
-  es:{tagline:'Juegos multijugador',createRoom:'🎮 Crear sala',joinRoom:'🚪 Unirse',
-    howItWorks:'Únete con código de 4 dígitos • Hasta 100 jugadores\n3 juegos: Trivia, Palabra Prohibida, Dibujo',
-    back:'← Atrás',whatsYourName:'¿Cómo te llamas?',nameWillShow:'El nombre aparecerá en el marcador',
-    createAndGo:'Crear sala ➜',joinTitle:'Unirse al juego',enterCode:'Ingresa el código de 4 dígitos',
-    joinBtn:'Unirse ➜',roomCode:'Código de sala',shareCode:'Comparte este código con los jugadores',
+    nextRound:'Следующий раунд',endGame:'Завершить',
+    guessedCorrect:'✅ Угадал!',alreadyGuessed:'Уже угадал',drawerLabel:'Рисует:',
+    hostKick:'Выгнать',pleaseWait:'Подожди...',connecting:'Подключение...',
+    leaveConfirm:'Выйти из игры?',endConfirm:'Завершить игру?',drawWord:'Нарисуй слово!',
+    triviaStarted:'🧠 Викторина началась!',forbiddenStarted:'🚫 Запретное слово началось!',drawStarted:'🎨 Рисование началось!',
+    guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
+    guideTitle:'Как играть',
+    guideStep1Title:'Создай или войди в комнату',guideStep1Desc:'Хост создаёт комнату и получает 4-значный код. Игроки входят по коду или QR.',
+    guideStep2Title:'Выбери игру',guideStep2Desc:'Хост выбирает одну из 3 игр: Викторина, Запретное слово или Рисование.',
+    guideStep3Title:'Играйте вместе',guideStep3Desc:'Все играют одновременно на своих устройствах. Отвечай быстрее — больше очков!',
+    guideStep4Title:'Смотри результаты',guideStep4Desc:'В конце показывается пьедестал с тремя лидерами. Можно играть снова!',
+    guideStep5Title:'Поделись комнатой',guideStep5Desc:'Используй WhatsApp или Telegram для приглашения друзей.',
+    aboutDev:'Разработчик',aboutVersion:'Версия',aboutContact:'Контакт',
+  },
+  es:{
+    tagline:'Juegos multijugador',createRoom:'🎮 Crear sala',joinRoom:'🚪 Unirse',
+    howItWorks:'Unete con codigo de 4 digitos • Hasta 100 jugadores\n3 juegos: Trivia, Palabra Prohibida, Dibujo',
+    back:'← Atras',whatsYourName:'Como te llamas?',namePlaceholder:'Ingresa nombre...',
+    nameWillShow:'El nombre aparecera en el marcador',
+    createAndGo:'Crear sala ➜',joinTitle:'Unirse al juego',codePlaceholder:'CODIGO',
+    enterCode:'Ingresa el codigo de 4 digitos del anfitrion',
+    joinBtn:'Unirse ➜',roomCode:'Codigo de sala',shareCode:'Comparte este codigo con los jugadores',
+    copyLink:'🔗 Copiar',share:'📤 Compartir',copied:'✅ Copiado!',
     players:'Jugadores',chooseGame:'Elige juego',trivia:'Trivia',forbidden:'Palabra prohibida',draw:'Dibujo',
-    startGame:'Iniciar ▶',leave:'Salir',waitingForHost:'Esperando al anfitrión...',
-    hostWillStart:'El anfitrión iniciará pronto',liveScores:'Puntuación',
-    yourTurnDescribe:'¡Tu turno de describir!',dontSay:'No digas:',sendGuess:'Enviar',
-    wordToGuess:'Adivina la palabra:',clear:'Borrar',results:'Resultados',gameOver:'¡Juego terminado!',
-    playAgain:'Jugar de nuevo 🔄',host:'Anfitrión',kicked:'Te expulsaron',
-    roomNotFound:'Sala no encontrada',nameRequired:'Ingresa un nombre',codeRequired:'Ingresa un código',
+    startGame:'Iniciar ▶',leave:'Salir',leaveRoom:'Abandonar sala',
+    waitingForHost:'Esperando al anfitrion...',hostWillStart:'El anfitrion iniciara pronto',
+    liveScores:'Puntuacion',yourTurnDescribe:'Tu turno de describir!',dontSay:'No digas:',
+    sendGuess:'Enviar',guessDraw:'Adivina el dibujo...',guessWord:'Adivina...',
+    messagePlaceholder:'Mensaje...',send:'Enviar',clear:'Borrar',
+    results:'Resultados',gameOver:'Juego terminado!',playAgain:'Jugar de nuevo 🔄',
+    host:'Anfitrion',kicked:'Te expulsaron',
+    roomNotFound:'Sala no encontrada',nameRequired:'Ingresa un nombre',codeRequired:'Ingresa un codigo',
     question:'Pregunta',of:'de',answered:'respondieron',waitOthers:'Esperando...',
-    correctSound:'✅ ¡Correcto!',wrongSound:'❌ Incorrecto',timeUp:'⏰ ¡Tiempo agotado!',
+    correctAnim:'✅ Correcto!',wrongAnim:'❌ Incorrecto',timeUpAnim:'⏰ Tiempo agotado!',
     round:'Ronda',describing:'describe',guessing:'adivina',
-    nextRound:'Siguiente ronda',endGame:'Terminar',stopGame:'Parar',
-    guessedCorrect:'✅ ¡Adivinaste!',alreadyGuessed:'Ya adivinaste',
-    drawerLabel:'Dibuja:',chat:'Chat',send:'Enviar',
-    hostKick:'Expulsar',pleaseWait:'Espera...',connecting:'Conectando...'},
-  ar:{tagline:'ألعاب متعددة اللاعبين',createRoom:'🎮 إنشاء غرفة',joinRoom:'🚪 انضم لغرفة',
-    howItWorks:'انضم بكود من 4 أرقام • حتى 100 لاعب\n3 ألعاب: ترويا، كلمة محظورة، رسم',
-    back:'← رجوع',whatsYourName:'ما اسمك؟',nameWillShow:'سيظهر الاسم في لوحة النقاط',
-    createAndGo:'إنشاء غرفة ➜',joinTitle:'انضم للعبة',enterCode:'أدخل الكود المكون من 4 أرقام',
+    nextRound:'Siguiente ronda',endGame:'Terminar',
+    guessedCorrect:'✅ Adivinaste!',alreadyGuessed:'Ya adivinaste',drawerLabel:'Dibuja:',
+    hostKick:'Expulsar',pleaseWait:'Espera...',connecting:'Conectando...',
+    leaveConfirm:'Abandonar el juego?',endConfirm:'Terminar el juego?',drawWord:'Dibuja la palabra!',
+    triviaStarted:'🧠 Trivia comenzo!',forbiddenStarted:'🚫 Palabra Prohibida comenzo!',drawStarted:'🎨 Dibujo comenzo!',
+    guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
+    guideTitle:'Como jugar',
+    guideStep1Title:'Crea o unete a una sala',guideStep1Desc:'El anfitrion crea una sala y obtiene un codigo de 4 digitos. Los jugadores se unen con el codigo o QR.',
+    guideStep2Title:'Elige un juego',guideStep2Desc:'El anfitrion elige uno de 3 juegos: Trivia, Palabra Prohibida o Dibujo.',
+    guideStep3Title:'Jueguen juntos',guideStep3Desc:'Todos juegan al mismo tiempo en sus dispositivos. Responde rapido para mas puntos!',
+    guideStep4Title:'Ve los resultados',guideStep4Desc:'Al final se muestra un podio con los 3 mejores. Puedes jugar de nuevo!',
+    guideStep5Title:'Comparte la sala',guideStep5Desc:'Usa WhatsApp o Telegram para invitar amigos directamente.',
+    aboutDev:'Desarrollador',aboutVersion:'Version',aboutContact:'Contacto',
+  },
+  ar:{
+    tagline:'العاب متعددة اللاعبين',createRoom:'🎮 انشاء غرفة',joinRoom:'🚪 انضم لغرفة',
+    howItWorks:'انضم بكود من 4 ارقام • حتى 100 لاعب\n3 العاب: تريفيا، كلمة محظورة، رسم',
+    back:'رجوع ←',whatsYourName:'ما اسمك؟',namePlaceholder:'ادخل الاسم...',
+    nameWillShow:'سيظهر الاسم في لوحة النقاط',
+    createAndGo:'انشاء غرفة ➜',joinTitle:'انضم للعبة',codePlaceholder:'الكود',
+    enterCode:'ادخل الكود المكون من 4 ارقام من المضيف',
     joinBtn:'انضم ➜',roomCode:'كود الغرفة',shareCode:'شارك هذا الكود مع اللاعبين',
-    players:'اللاعبون',chooseGame:'اختر لعبة',trivia:'ترويا',forbidden:'كلمة محظورة',draw:'رسم',
-    startGame:'ابدأ ▶',leave:'اخرج',waitingForHost:'في انتظار المضيف...',
-    hostWillStart:'سيبدأ المضيف قريباً',liveScores:'النقاط المباشرة',
-    yourTurnDescribe:'دورك للوصف!',dontSay:'لا تقل:',sendGuess:'أرسل',
-    wordToGuess:'خمّن الكلمة:',clear:'امسح',results:'النتائج',gameOver:'انتهت اللعبة!',
-    playAgain:'العب مجدداً 🔄',host:'مضيف',kicked:'تم طردك',
-    roomNotFound:'الغرفة غير موجودة',nameRequired:'أدخل اسماً',codeRequired:'أدخل الكود',
-    question:'سؤال',of:'من',answered:'أجابوا',waitOthers:'في انتظار الآخرين...',
-    correctSound:'✅ صحيح!',wrongSound:'❌ خطأ',timeUp:'⏰ انتهى الوقت!',
+    copyLink:'🔗 نسخ',share:'📤 مشاركة',copied:'تم النسخ!',
+    players:'اللاعبون',chooseGame:'اختر لعبة',trivia:'تريفيا',forbidden:'كلمة محظورة',draw:'رسم',
+    startGame:'ابدا ▶',leave:'اخرج',leaveRoom:'غادر الغرفة',
+    waitingForHost:'في انتظار المضيف...',hostWillStart:'سيبدا المضيف قريبا',
+    liveScores:'النقاط المباشرة',yourTurnDescribe:'دورك للوصف!',dontSay:'لا تقل:',
+    sendGuess:'ارسل',guessDraw:'خمن الرسم...',guessWord:'خمن...',
+    messagePlaceholder:'رسالة...',send:'ارسال',clear:'امسح',
+    results:'النتائج',gameOver:'انتهت اللعبة!',playAgain:'العب مجددا 🔄',
+    host:'مضيف',kicked:'تم طردك',
+    roomNotFound:'الغرفة غير موجودة',nameRequired:'ادخل اسما',codeRequired:'ادخل الكود',
+    question:'سؤال',of:'من',answered:'اجابوا',waitOthers:'في انتظار الاخرين...',
+    correctAnim:'صحيح!',wrongAnim:'خطا',timeUpAnim:'انتهى الوقت!',
     round:'جولة',describing:'يصف',guessing:'يخمن',
-    nextRound:'الجولة التالية',endGame:'إنهاء',stopGame:'إيقاف',
-    guessedCorrect:'✅ خمّنت بشكل صحيح!',alreadyGuessed:'خمّنت بالفعل',
-    drawerLabel:'يرسم:',chat:'دردشة',send:'إرسال',
-    hostKick:'طرد',pleaseWait:'انتظر...',connecting:'جارٍ الاتصال...'},
+    nextRound:'الجولة التالية',endGame:'انهاء',
+    guessedCorrect:'خمنت بشكل صحيح!',alreadyGuessed:'خمنت بالفعل',drawerLabel:'يرسم:',
+    hostKick:'طرد',pleaseWait:'انتظر...',connecting:'جار الاتصال...',
+    leaveConfirm:'مغادرة اللعبة؟',endConfirm:'انهاء اللعبة؟',drawWord:'ارسم الكلمة!',
+    triviaStarted:'بدات التريفيا!',forbiddenStarted:'بدات الكلمة المحظورة!',drawStarted:'بدا الرسم!',
+    guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
+    guideTitle:'كيف تلعب',
+    guideStep1Title:'انشئ غرفة او انضم اليها',guideStep1Desc:'المضيف ينشئ غرفة ويحصل على كود من 4 ارقام. اللاعبون ينضمون بالكود او QR.',
+    guideStep2Title:'اختر لعبة',guideStep2Desc:'المضيف يختار واحدة من 3 العاب: تريفيا، كلمة محظورة، او رسم.',
+    guideStep3Title:'العبوا معا',guideStep3Desc:'الجميع يلعب في نفس الوقت على اجهزتهم. اجب سريعا لمزيد من النقاط!',
+    guideStep4Title:'شاهد النتائج',guideStep4Desc:'في النهاية يظهر منصة التتويج مع افضل 3 لاعبين. يمكنك اللعب مجددا!',
+    guideStep5Title:'شارك الغرفة',guideStep5Desc:'استخدم WhatsApp او Telegram لدعوة الاصدقاء مباشرة.',
+    aboutDev:'المطور',aboutVersion:'الاصدار',aboutContact:'تواصل',
+  }
 };
-let lang='he';
-function t(k){return(T[lang]||T.en)[k]||k;}
-
-window.setLang=function(l){
-  lang=l;
-  document.querySelectorAll('.lang-pill').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
-  const rtl=['he','ar'].includes(l);
-  document.body.dir=rtl?'rtl':'ltr';
-  document.body.classList.toggle('ltr',!rtl);
-  applyT();
-};
+let lang='en';
+function t(k){return(T[lang]||T.en)[k]||(T.en[k])||k;}
 
 // Wait for Firebase to be ready
 document.addEventListener('DOMContentLoaded', function() {
+  // Restore lang
+  var savedLang=localStorage.getItem('pn_lang');
+  if(savedLang&&T[savedLang]){
+    lang=savedLang;
+    document.querySelectorAll('.lang-pill').forEach(function(b){
+      var oc=b.getAttribute('onclick')||'';
+      if(oc.indexOf("'"+savedLang+"'")>=0)b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+  // Restore theme
+  var savedTheme=localStorage.getItem('pn_theme');
+  if(savedTheme==='day'){isDark=false;document.body.classList.add('day');document.getElementById('themeBtn').textContent='☀️';}
+
   // Restore session on reload
   (function restoreSession(){
   var savedId=localStorage.getItem('pn_id');
@@ -690,7 +822,41 @@ window.addEventListener('pagehide', function(){
 
 applyT();
 }); // end DOMContentLoaded
-function applyT(){document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));}
+function applyT(){
+  const L=T[lang]||T.en;
+  // data-i elements
+  document.querySelectorAll('[data-i]').forEach(el=>el.textContent=t(el.dataset.i));
+  // Home screen
+  _st('homeTagline','tagline');_st('homeCreateBtn','createRoom');_st('homeJoinBtn','joinRoom');_st('homeHint','howItWorks');
+  // Entry screens
+  _st('createTitle','whatsYourName');_st('createSub','nameWillShow');_st('createBtn','createAndGo');
+  _st('joinTitle2','joinTitle');_st('joinSub','enterCode');_st('joinSubmitBtn','joinBtn');
+  // Placeholders
+  _ph('createNameInput','namePlaceholder');_ph('joinNameInput','namePlaceholder');_ph('joinCodeInput','codePlaceholder');
+  _ph('triviaChatInput','messagePlaceholder');_ph('forbiddenChatInput','messagePlaceholder');_ph('drawChatInput','messagePlaceholder');
+  _ph('forbiddenGuessInp','guessWord');_ph('drawGuessInp','guessDraw');
+  // Share buttons
+  _st('btn-cp','copyLink');_st('btn-sh','share');
+  // Lobby
+  _st('lobbyShareCodeTxt','shareCode');_st('lobbyRoomCodeLbl','roomCode');
+  _st('lobbyPlayersTxt','players');_st('lobbyPlayersTxt2','players');
+  _st('lobbyChooseGame','chooseGame');_st('lobbyStartBtn','startGame');
+  _st('lobbyLeaveBtn','leave');_st('lobbyLeaveBtn2','leaveRoom');
+  _st('lobbyWaiting','waitingForHost');_st('lobbyWaitingSub','hostWillStart');
+  // Game names
+  ['trivia','forbidden','draw'].forEach(g=>{_st('game-name-'+g,g);});
+  // Sidebar titles
+  _st('triviaSidebarTitle','liveScores');_st('forbiddenSidebarTitle','liveScores');_st('drawSidebarTitle','liveScores');
+  // Results
+  _st('resultsTitle','gameOver');_st('playAgainBtn','playAgain');
+  // All leave/back buttons
+  document.querySelectorAll('[data-txt]').forEach(el=>el.textContent=t(el.dataset.txt));
+  // Guide/About if open
+  updateGuideContent();updateAboutContent();
+}
+function _st(id,key){const el=document.getElementById(id);if(el)el.textContent=t(key);}
+function _ph(id,key){const el=document.getElementById(id);if(el)el.placeholder=t(key);}
+
 
 // ===== STATE =====
 let myId='p_'+Math.random().toString(36).substr(2,9);
@@ -750,7 +916,7 @@ function playSound(type){
 window.createRoom=async function(){
   const name=document.getElementById('createNameInput').value.trim();
   if(!name){document.getElementById('createErr').textContent=t('nameRequired');return;}
-  document.getElementById('createErr').textContent='מתחבר...';
+  document.getElementById('createErr').textContent=t('connecting');
   try{
   myName=name;isHost=true;
   roomCode=Math.floor(1000+Math.random()*9000).toString();
@@ -781,23 +947,23 @@ window.selectGame=function(g){
 
 window.shareVia=function(platform){
   const url=window.location.href.split('?')[0]+'?join='+roomCode;
-  const msg=(lang==='he'?'הצטרף למשחק PartyNest! קוד: ':lang==='ar'?'انضم للعبة PartyNest! الكود: ':'Join PartyNest game! Code: ')+roomCode+'\n'+url;
+  const msg='PartyNest! '+t('roomCode')+': '+roomCode+'\n'+url;
   if(platform==='whatsapp'){
     window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
   } else if(platform==='telegram'){
-    window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent(lang==='he'?'הצטרף למשחק! קוד: '+roomCode:'Join the game! Code: '+roomCode),'_blank');
+    window.open('https://t.me/share/url?url='+encodeURIComponent(url)+'&text='+encodeURIComponent('PartyNest! Code: '+roomCode),'_blank');
   } else if(platform==='copy'){
     navigator.clipboard.writeText(url).then(()=>{
       const btn=document.getElementById('btn-cp');
-      if(btn){btn.textContent='✅ הועתק!';setTimeout(()=>btn.textContent='🔗 העתק',2000);}
+      if(btn){btn.textContent=t('copied');setTimeout(()=>btn.textContent=t('copyLink'),2000);}
     }).catch(()=>{
-      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+      prompt(t('copyLink'),url);
     });
   } else if(platform==='native'){
     if(navigator.share){
       navigator.share({title:'PartyNest',text:msg,url}).catch(()=>{});
     } else {
-      prompt(lang==='he'?'העתק קישור:':'Copy link:',url);
+      prompt(t('copyLink'),url);
     }
   }
 };
@@ -863,7 +1029,7 @@ window.leaveRoom=async function(){
 };
 
 window.confirmLeave=function(){
-  if(confirm(lang==='he'?'לצאת מהמשחק?':lang==='ru'?'Выйти из игры?':'Leave game?'))leaveRoom();
+  if(confirm(t('leaveConfirm')))leaveRoom();
 };
 
 window.kickPlayer=function(pid){
@@ -905,8 +1071,7 @@ function listenRoom(){
     if(room.status==='lobby'){
       if(isHost){setupLobbyHost();renderLobbyPlayers(room);}
       else{
-        const gn={trivia:t('trivia'),forbidden:t('forbidden'),draw:t('draw')};
-        document.getElementById('playerGameBadge').textContent='🎮 '+gn[selectedGame];
+        document.getElementById('playerGameBadge').textContent='🎮 '+t(selectedGame);
         renderLobbyPlayersP(room);
         showScreen('lobbyPlayer');
       }
@@ -961,14 +1126,14 @@ function renderHostControls(containerId,extraBtns=''){
   const el=document.getElementById(containerId);
   if(!el)return;
   el.innerHTML=`<div class="host-controls">
-    <div class="host-ctrl-title">🎛 מנהל</div>
+    <div class="host-ctrl-title">🎛 Host</div>
     ${extraBtns}
     <button class="host-ctrl-btn danger" onclick="confirmEndGame()">${t('endGame')}</button>
   </div>`;
 }
 
 window.confirmEndGame=function(){
-  if(confirm(lang==='he'?'לסיים את המשחק?':'End the game?'))
+  if(confirm(t('endConfirm')))
     db.ref('rooms/'+roomCode).update({status:'results',finalScores:getScoresFlat()});
 };
 
@@ -1011,7 +1176,7 @@ function systemMsg(text){
 // ===== START GAME =====
 window.startGame=function(){
   const ps=Object.keys(scores);
-  if(!ps.length){toast(lang==='he'?'צריך לפחות שחקן אחד!':'Need at least 1 player!','red');return;}
+  if(!ps.length){toast(t('needPlayer'),'red');return;}
   playSound('start');
   if(selectedGame==='trivia')initTrivia();
   else if(selectedGame==='forbidden')initForbidden();
@@ -1057,10 +1222,33 @@ const TQ={
   ],
 };
 
+
+// Extra trivia for ru/es/ar (fallback to en)
+const TQ_EXTRA={
+  ru:[
+    {q:'Столица России?',a:'Москва',w:['Санкт-Петербург','Новосибирск','Казань']},
+    {q:'Самое глубокое озеро?',a:'Байкал',w:['Каспийское','Ладожское','Онежское']},
+    {q:'Химический символ воды?',a:'H2O',w:['HO','H2O2','OH']},
+    {q:'Сколько планет в Солнечной системе?',a:'8',w:['7','9','10']},
+  ],
+  es:[
+    {q:'Capital de Espana?',a:'Madrid',w:['Barcelona','Sevilla','Valencia']},
+    {q:'Cuantos continentes hay?',a:'7',w:['5','6','8']},
+    {q:'Cual es el pais mas grande?',a:'Rusia',w:['Canada','China','Brasil']},
+    {q:'En que ano empezo la Segunda Guerra Mundial?',a:'1939',w:['1941','1938','1940']},
+  ],
+  ar:[
+    {q:'عاصمة مصر؟',a:'القاهرة',w:['الاسكندرية','الجيزة','الاقصر']},
+    {q:'اكبر دولة عربية؟',a:'الجزائر',w:['السعودية','السودان','ليبيا']},
+    {q:'اول رائد فضاء؟',a:'يوري غاغارين',w:['نيل ارمسترونغ','باز الدرين','جون غلين']},
+    {q:'كم يوما في السنة الكبيسة؟',a:'366',w:['365','367','360']},
+  ]
+};
+
 let triviaTimerStart=0,triviaAnswered={};
 
 function initTrivia(){
-  const qs=(TQ[lang]||TQ.en).sort(()=>Math.random()-0.5).slice(0,10);
+  const baseQ=TQ[lang]||TQ.en;const extraQ=TQ_EXTRA&&TQ_EXTRA[lang]?TQ_EXTRA[lang]:[];const allQ=[...baseQ,...extraQ];const qs=allQ.sort(()=>Math.random()-0.5).slice(0,10);
   const initSc={};Object.keys(scores).forEach(id=>initSc[id]=0);
   const players={};Object.entries(scores).forEach(([id,p])=>players[id]={...p,score:0});
   db.ref('rooms/'+roomCode).update({
@@ -1068,7 +1256,7 @@ function initTrivia(){
     triviaAnswers:{},triviaScores:initSc,triviaStart:Date.now(),
     players,chat:null
   });
-  systemMsg(lang==='he'?'🧠 טריוויה התחילה!':'🧠 Trivia started!');
+  systemMsg(t('triviaStarted'));
 }
 
 function loadTrivia(room){
@@ -1219,6 +1407,44 @@ const FW={
   ],
 };
 
+// Forbidden words for ru/es/ar
+if(!FW.ru) FW.ru=[
+  {word:'Компьютер',hints:['экран','клавиатура','мышь','программа']},
+  {word:'Океан',hints:['волны','соль','плавание','рыба']},
+  {word:'Торт',hints:['сладкий','день рождения','шоколад','мука']},
+  {word:'Футбол',hints:['игрок','гол','мяч','поле']},
+  {word:'Дом',hints:['крыша','стена','дверь','окно']},
+  {word:'Книга',hints:['чтение','страница','автор','библиотека']},
+  {word:'Музыка',hints:['песня','инструмент','мелодия','ритм']},
+  {word:'Лев',hints:['король','джунгли','зубы','дикий']},
+  {word:'Самолет',hints:['полет','небо','пилот','крылья']},
+  {word:'Поезд',hints:['рельсы','станция','вагон','путешествие']},
+];
+if(!FW.es) FW.es=[
+  {word:'Computadora',hints:['pantalla','teclado','raton','software']},
+  {word:'Oceano',hints:['olas','sal','natacion','peces']},
+  {word:'Pastel',hints:['dulce','cumpleanos','chocolate','harina']},
+  {word:'Futbol',hints:['jugador','gol','balon','campo']},
+  {word:'Casa',hints:['techo','pared','puerta','ventana']},
+  {word:'Libro',hints:['lectura','pagina','autor','biblioteca']},
+  {word:'Musica',hints:['cancion','instrumento','melodia','ritmo']},
+  {word:'Leon',hints:['rey','selva','dientes','salvaje']},
+  {word:'Avion',hints:['vuelo','cielo','piloto','alas']},
+  {word:'Tren',hints:['ferrocarril','estacion','vagon','viaje']},
+];
+if(!FW.ar) FW.ar=[
+  {word:'حاسوب',hints:['شاشة','لوحة مفاتيح','فارة','برنامج']},
+  {word:'محيط',hints:['امواج','ملح','سباحة','سمك']},
+  {word:'كعكة',hints:['حلو','عيد ميلاد','شوكولاتة','دقيق']},
+  {word:'كرة القدم',hints:['لاعب','هدف','كرة','ملعب']},
+  {word:'بيت',hints:['سقف','جدار','باب','نافذة']},
+  {word:'كتاب',hints:['قراءة','صفحة','مؤلف','مكتبة']},
+  {word:'موسيقى',hints:['اغنية','آلة موسيقية','لحن','ايقاع']},
+  {word:'اسد',hints:['ملك','غابة','اسنان','بري']},
+  {word:'طائرة',hints:['طيران','سماء','طيار','اجنحة']},
+  {word:'قطار',hints:['سكة حديد','محطة','عربة','سفر']},
+];
+
 let forbTimerStart=0;
 
 function initForbidden(){
@@ -1231,7 +1457,7 @@ function initForbidden(){
     forbDescriber:players[0],forbScores:initSc,forbStart:Date.now(),
     forbRound:1,players:ps,forbGuessed:{},chat:null
   });
-  systemMsg(lang==='he'?'🚫 מילה אסורה התחילה!':'🚫 Forbidden Word started!');
+  systemMsg(t('forbiddenStarted'));
 }
 
 function loadForbidden(room){
@@ -1301,7 +1527,7 @@ window.submitForbiddenGuess=async function(){
     });
     await db.ref('rooms/'+roomCode+'/players/'+myId).update({score:fSc[myId]});
     inp.value=t('guessedCorrect');inp.disabled=true;
-    systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
+    systemMsg(myName+' '+t('guessedCorrectly'));
     // Check all guessed
     const allGuessed=Object.keys(room.players||{}).filter(id=>id!==room.forbDescriber);
     if(isHost&&allGuessed.every(id=>(room.forbGuessed||{})[id]||(id===myId)))
@@ -1340,6 +1566,11 @@ const DW={
   en:['house','dog','tree','sun','car','bicycle','apple','fish','moon','star','book','clock','flower','bridge','phone','elephant','snake','robot','cake','airplane'],
 };
 
+// Draw words already have he/en, add ru/es/ar
+if(!DW.ru) DW.ru=['дом','собака','дерево','солнце','машина','велосипед','яблоко','рыба','луна','звезда','книга','часы','цветок','мост','телефон','слон','змея','робот','торт','самолет'];
+if(!DW.es) DW.es=['casa','perro','arbol','sol','coche','bicicleta','manzana','pez','luna','estrella','libro','reloj','flor','puente','telefono','elefante','serpiente','robot','pastel','avion'];
+if(!DW.ar) DW.ar=['بيت','كلب','شجرة','شمس','سيارة','دراجة','تفاحة','سمكة','قمر','نجمة','كتاب','ساعة','زهرة','جسر','هاتف','فيل','ثعبان','روبوت','كعكة','طائرة'];
+
 let drawTimerStart=0,drawLastSync=0;
 
 function initDraw(){
@@ -1352,7 +1583,7 @@ function initDraw(){
     drawDrawer:players[0],drawScores:initSc,drawStart:Date.now(),
     drawRound:1,players:ps,drawGuessed:{},drawCanvas:null,chat:null
   });
-  systemMsg(lang==='he'?'🎨 ציור התחיל!':'🎨 Drawing started!');
+  systemMsg(t('drawStarted'));
 }
 
 function loadDraw(room){
@@ -1371,7 +1602,7 @@ function loadDraw(room){
   const hint=document.getElementById('drawWordHint');
   if(isDrawer){
     hint.innerHTML=word.split('').map(c=>c===' '?'<div style="width:10px"></div>':`<div class="word-dash">${c}</div>`).join('');
-    document.getElementById('drawInfo').textContent=lang==='he'?'צייר את המילה!':'Draw the word!';
+    document.getElementById('drawInfo').textContent=t('drawWord');
   } else {
     hint.innerHTML=word.split('').map(c=>c===' '?'<div style="width:10px"></div>':`<div class="word-dash">_</div>`).join('');
     const guessed=(room.drawGuessed||{})[myId];
@@ -1475,7 +1706,7 @@ window.checkDrawGuess=async function(submit=false){
     });
     await db.ref('rooms/'+roomCode+'/players/'+myId).update({score:dSc[myId]});
     inp.value=t('guessedCorrect');inp.disabled=true;
-    systemMsg(myName+' '+(lang==='he'?'ניחש נכון! 🎉':'guessed correctly! 🎉'));
+    systemMsg(myName+' '+t('guessedCorrectly'));
     const allGuessers=Object.keys(room.players||{}).filter(id=>id!==room.drawDrawer);
     if(isHost&&allGuessers.every(id=>(room.drawGuessed||{})[id]||(id===myId)))
       setTimeout(()=>advanceDraw(room),1200);
@@ -1515,14 +1746,12 @@ function showResults(room){
   const podium=document.getElementById('podiumWrap');
   const cls=['gold','silver','bronze'];
   const medals=['🥇','🥈','🥉'];
-  // order: silver(2nd), gold(1st), bronze(3rd) — visually left-to-right
   const order=[1,0,2];
-  podium.style.direction='ltr';
   podium.innerHTML=order.slice(0,Math.min(3,sorted.length)).map((pos,i)=>{
     const [id,pts]=sorted[pos]||[null,0];
     const name=(scores[id]||{name:'?'}).name;
     return`<div class="podium-col">
-      <div class="podium-bar ${cls[pos]}">${medals[pos]}</div>
+      <div class="podium-bar ${cls[i]}">${medals[pos]||pos+1}</div>
       <div class="podium-name">${name}</div>
       <div style="font-size:0.75rem;color:var(--gold);">${pts}</div>
     </div>`;
