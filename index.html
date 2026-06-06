@@ -4136,6 +4136,15 @@ function loadRace(room) {
   // Set container explicit height
   var container = document.getElementById('raceTrackContainer');
   if(container) container.style.height = raceCanvasH + 'px';
+  // Create minimap overlay canvas (for 3D mode)
+  var existingMM = document.getElementById('raceMinimapCanvas');
+  if(existingMM) existingMM.remove();
+  var mmCanvas = document.createElement('canvas');
+  mmCanvas.id = 'raceMinimapCanvas';
+  mmCanvas.width = raceCanvasW;
+  mmCanvas.height = raceCanvasH;
+  mmCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:20;display:none;width:'+raceCanvasW+'px;height:'+raceCanvasH+'px;';
+  if(container) container.appendChild(mmCanvas);
   // Size 3D canvas
   var canvas3d = document.getElementById('raceCanvas3d');
   if(canvas3d) {
@@ -4161,8 +4170,13 @@ function loadRace(room) {
     finEl.style.display = 'none';
     gasBtn.disabled = false;
     gasBtn.style.opacity = '1';
-    // Animate gas button on boost
-    setInterval(function(){
+    // Animate gas button on boost (clear old interval first)
+    if(window._gasInterval) clearInterval(window._gasInterval);
+    window._gasInterval = setInterval(function(){
+      if(!document.getElementById('raceGasBtn')) {
+        clearInterval(window._gasInterval);
+        return;
+      }
       if(Date.now() < myBoostUntil) {
         gasBtn.style.background = 'linear-gradient(135deg,#FF6600,#FFD700)';
         gasBtn.style.boxShadow = '0 4px 0 #994400, 0 0 20px #FF660088';
@@ -4292,8 +4306,16 @@ window.setRaceView = function(mode) {
     }
   } else {
     if(canvas2d) { canvas2d.style.display = 'block'; }
-    if(canvas3d) { canvas3d.style.display = 'none'; canvas3d.style.position = 'absolute'; }
+    if(canvas3d) { canvas3d.style.display = 'none'; }
+    var mm = document.getElementById('raceMinimapCanvas');
+    if(mm) mm.style.display = 'none';
     if(threeAnimId) { cancelAnimationFrame(threeAnimId); threeAnimId = null; }
+    // Restart 2D loop if needed
+    if(!raceAnimFrame && window._lastRaceRoom && window._lastRaceRoom.raceState !== 'finished') {
+      raceAnimFrame = requestAnimationFrame(function(){
+        if(window._lastRaceRoom) drawRaceTrack(window._lastRaceRoom);
+      });
+    }
   }
 };
 
@@ -4590,15 +4612,7 @@ function updateThreeJS(room) {
 
   // Draw minimap overlay on a 2D canvas on top of 3D
   var mmCanvas = document.getElementById('raceMinimapCanvas');
-  if(!mmCanvas) {
-    mmCanvas = document.createElement('canvas');
-    mmCanvas.id = 'raceMinimapCanvas';
-    mmCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:10;';
-    var container = document.getElementById('raceCanvas3d').parentNode;
-    container.appendChild(mmCanvas);
-  }
-  mmCanvas.width = raceCanvasW;
-  mmCanvas.height = raceCanvasH;
+  if(!mmCanvas) return; // created in loadRace
   mmCanvas.style.display = raceView==='3d' ? 'block' : 'none';
   var mmCtx = mmCanvas.getContext('2d');
   mmCtx.clearRect(0,0,raceCanvasW,raceCanvasH);
