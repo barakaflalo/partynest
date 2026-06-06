@@ -402,26 +402,26 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden"><span class="game-opt-icon">🚫</span><span class="game-opt-name" data-i="forbidden">מילה אסורה</span></div>
         <div class="game-opt" onclick="selectGame('draw')" id="go-draw"><span class="game-opt-icon">🎨</span><span class="game-opt-name" data-i="draw">ציור</span></div>
       </div>
-    </div>
-    <!-- ROOM SETTINGS -->
-    <div class="room-settings" id="roomSettingsPanel">
-      <div class="settings-title" id="txt-settingsTitle">⚙️ ROOM SETTINGS</div>
-      <div class="settings-row">
-        <span class="settings-label" id="txt-numQuestions">Questions</span>
-        <div class="settings-opts" id="settingsNumQ">
-          <button class="settings-opt" onclick="setSetting('numQ',5,this)">5</button>
-          <button class="settings-opt active" onclick="setSetting('numQ',10,this)">10</button>
-          <button class="settings-opt" onclick="setSetting('numQ',15,this)">15</button>
-          <button class="settings-opt" onclick="setSetting('numQ',20,this)">20</button>
+      <!-- ROOM SETTINGS - shown only for trivia -->
+      <div class="room-settings" id="roomSettingsPanel" style="margin-top:10px;">
+        <div class="settings-title" id="txt-settingsTitle">⚙️ ROOM SETTINGS</div>
+        <div class="settings-row">
+          <span class="settings-label" id="txt-numQuestions">Questions</span>
+          <div class="settings-opts" id="settingsNumQ">
+            <button class="settings-opt" onclick="setSetting('numQ',5,this)">5</button>
+            <button class="settings-opt active" onclick="setSetting('numQ',10,this)">10</button>
+            <button class="settings-opt" onclick="setSetting('numQ',15,this)">15</button>
+            <button class="settings-opt" onclick="setSetting('numQ',20,this)">20</button>
+          </div>
         </div>
-      </div>
-      <div class="settings-row">
-        <span class="settings-label" id="txt-timePerQ">Time / Q</span>
-        <div class="settings-opts" id="settingsTime">
-          <button class="settings-opt" onclick="setSetting('timeQ',10,this)">10s</button>
-          <button class="settings-opt active" onclick="setSetting('timeQ',20,this)">20s</button>
-          <button class="settings-opt" onclick="setSetting('timeQ',30,this)">30s</button>
-          <button class="settings-opt" onclick="setSetting('timeQ',60,this)">60s</button>
+        <div class="settings-row">
+          <span class="settings-label" id="txt-timePerQ">Time / Q</span>
+          <div class="settings-opts" id="settingsTime">
+            <button class="settings-opt" onclick="setSetting('timeQ',10,this)">10s</button>
+            <button class="settings-opt active" onclick="setSetting('timeQ',20,this)">20s</button>
+            <button class="settings-opt" onclick="setSetting('timeQ',30,this)">30s</button>
+            <button class="settings-opt" onclick="setSetting('timeQ',60,this)">60s</button>
+          </div>
         </div>
       </div>
     </div>
