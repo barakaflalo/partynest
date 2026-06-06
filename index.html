@@ -4565,7 +4565,91 @@ function drawRaceTrack(room) {
     p.x+=p.vx; p.y+=p.vy;
   });
 
-  // === MINI POSITIONS (top right) ===
+  // === MINIMAP (bottom right corner) ===
+  var mmW = 110, mmH = 80;
+  var mmX = W - mmW - 8, mmY = H - mmH - 8;
+  var mmPad = 10;
+
+  // Minimap background
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.strokeStyle = '#C9A84C';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(mmX, mmY, mmW, mmH, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // Draw track on minimap
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for(var mi = 0; mi <= TRACK_WAYPOINTS.length; mi++) {
+    var mpt = raceGetTrackPoint(mi / TRACK_WAYPOINTS.length);
+    var mx = mmX + mmPad + mpt.x * (mmW - mmPad*2);
+    var my = mmY + mmPad + mpt.y * (mmH - mmPad*2);
+    if(mi === 0) ctx.moveTo(mx, my);
+    else ctx.lineTo(mx, my);
+  }
+  ctx.closePath();
+  ctx.stroke();
+
+  // Track outline brighter
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for(var mi2 = 0; mi2 <= TRACK_WAYPOINTS.length; mi2++) {
+    var mpt2 = raceGetTrackPoint(mi2 / TRACK_WAYPOINTS.length);
+    var mx2 = mmX + mmPad + mpt2.x * (mmW - mmPad*2);
+    var my2 = mmY + mmPad + mpt2.y * (mmH - mmPad*2);
+    if(mi2 === 0) ctx.moveTo(mx2, my2);
+    else ctx.lineTo(mx2, my2);
+  }
+  ctx.closePath();
+  ctx.stroke();
+
+  // Start/finish mark on minimap
+  var sfMm = raceGetTrackPoint(0);
+  var sfMmX = mmX + mmPad + sfMm.x * (mmW - mmPad*2);
+  var sfMmY = mmY + mmPad + sfMm.y * (mmH - mmPad*2);
+  ctx.fillStyle = '#FFF';
+  ctx.fillRect(sfMmX - 3, sfMmY - 5, 2, 10);
+  ctx.fillRect(sfMmX + 1, sfMmY - 5, 2, 10);
+
+  // Draw all cars on minimap
+  Object.entries(room.racePlayers||{}).forEach(function(e) {
+    var pid = e[0], p = e[1];
+    var cpt = raceGetTrackPoint((p.progress||0) % 1);
+    var cmx = mmX + mmPad + cpt.x * (mmW - mmPad*2);
+    var cmy = mmY + mmPad + cpt.y * (mmH - mmPad*2);
+    var isMe2 = pid === myId;
+    var dotR = isMe2 ? 5 : 3.5;
+
+    // Glow for my car
+    if(isMe2) {
+      ctx.shadowColor = '#FFF';
+      ctx.shadowBlur = 6;
+    }
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(cmx, cmy, dotR, 0, Math.PI*2);
+    ctx.fill();
+    if(isMe2) {
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  });
+
+  // Minimap label
+  ctx.fillStyle = 'rgba(201,168,76,0.8)';
+  ctx.font = '7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('MAP', mmX + mmW/2, mmY + 8);
+
+  // === POSITION LIST (top left) ===
   var sorted2 = Object.entries(room.racePlayers||{}).sort(function(a,b){
     if(b[1].lap!==a[1].lap) return b[1].lap-a[1].lap;
     return b[1].progress-a[1].progress;
@@ -4573,11 +4657,19 @@ function drawRaceTrack(room) {
   ctx.textAlign='left';
   sorted2.forEach(function(e,i){
     var p=e[1], isMe2=e[0]===myId;
-    ctx.fillStyle = isMe2?'#FFF':p.color;
-    ctx.font=(isMe2?'bold ':'')+Math.max(9,11-sorted2.length)+'px Heebo,sans-serif';
-    ctx.shadowColor='#000'; ctx.shadowBlur=3;
     var medals=['🥇','🥈','🥉'];
-    ctx.fillText((medals[i]||i+1+'.')+' '+(p.name||'?').slice(0,6), 8, 50+i*16);
+    // Background pill
+    ctx.fillStyle = isMe2 ? 'rgba(201,168,76,0.25)' : 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(4, 42+i*18, 80, 15, 4);
+    ctx.fill();
+    // Colored bar
+    ctx.fillStyle = p.color;
+    ctx.fillRect(4, 42+i*18, 3, 15);
+    ctx.fillStyle = isMe2 ? '#FFF' : '#CCC';
+    ctx.font = (isMe2?'bold ':'')+Math.max(8,10)+'px Heebo,sans-serif';
+    ctx.shadowColor='#000'; ctx.shadowBlur=2;
+    ctx.fillText((medals[i]||i+1+'.')+' '+(p.name||'?').slice(0,7), 10, 53+i*18);
     ctx.shadowBlur=0;
   });
 
