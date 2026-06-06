@@ -4700,151 +4700,131 @@ function drawRaceTrack(room) {
   ctx.fillText(isBoosting3?'BOOST':'SPEED', W/2, barY-2);
 }
 
-window.raceGas = async function() {
-  if(raceLastUpdate && Date.now() - raceLastUpdate < 60) return;
-  raceLastUpdate = Date.now();
-  // Racing engine sound - layered oscillators for real engine feel
+// Hold-to-accelerate system
+var _gasHeld = false;
+var _gasLoopId = null;
+var _gasSpeed = 0; // current speed (accelerates while held)
+var _gasLastFirebase = 0; // last time we wrote to Firebase
+
+window.raceGasStart = function() {
+  if(_gasHeld) return;
+  _gasHeld = true;
+  
+  // Start idle engine on first press
+  if(!window._raceIdleStarted && !window._raceAudioCtx) {
+    window._raceIdleStarted = true;
+    try {
+      var actx2 = new (window.AudioContext||window.webkitAudioContext)();
+      window._raceAudioCtx = actx2;
+      var idleOsc = actx2.createOscillator();
+      var idleGain = actx2.createGain();
+      idleOsc.type = 'sawtooth';
+      idleOsc.frequency.value = 55;
+      idleGain.gain.value = 0.018;
+      idleOsc.connect(idleGain);
+      idleGain.connect(actx2.destination);
+      idleOsc.start();
+      window._raceIdleOsc = idleOsc;
+      setInterval(function(){
+        if(window._raceIdleOsc)
+          window._raceIdleOsc.frequency.value = 50+Math.sin(Date.now()/800)*8;
+      }, 50);
+    } catch(e){}
+  }
+
+  // Engine rev sound
+  playEngineRev(false);
+  
+  // Start acceleration loop - runs every 50ms while held
+  _gasLoopId = setInterval(function(){
+    if(!_gasHeld) { clearInterval(_gasLoopId); return; }
+    raceApplyGas();
+  }, 50);
+};
+
+window.raceGasStop = function() {
+  if(!_gasHeld) return;
+  _gasHeld = false;
+  clearInterval(_gasLoopId);
+  _gasLoopId = null;
+  _gasSpeed = 0; // reset speed on release
+};
+
+function playEngineRev(boost) {
   try {
     var actx = window._raceAudioCtx;
-    if(!actx) {
-      actx = new (window.AudioContext||window.webkitAudioContext)();
-      window._raceAudioCtx = actx;
-    }
-    if(actx.state === 'suspended') actx.resume();
+    if(!actx) return;
     var t = actx.currentTime;
-    var isBst = Date.now() < myBoostUntil;
-    var baseFreq = isBst ? 180 : 110;
-
-    // Layer 1: main engine growl (sawtooth)
+    var baseFreq = boost ? 180 : 110;
     var osc1 = actx.createOscillator();
     var gain1 = actx.createGain();
     osc1.type = 'sawtooth';
     osc1.frequency.setValueAtTime(baseFreq, t);
-    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 2.2, t + 0.06);
-    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.4, t + 0.18);
-    gain1.gain.setValueAtTime(0.18, t);
-    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-
-    // Layer 2: harmonic (square wave, lower)
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq*2.2, t+0.06);
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq*1.4, t+0.18);
+    gain1.gain.setValueAtTime(0.15, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t+0.22);
     var osc2 = actx.createOscillator();
     var gain2 = actx.createGain();
     osc2.type = 'square';
-    osc2.frequency.setValueAtTime(baseFreq * 0.5, t);
-    osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.1, t + 0.08);
-    osc2.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, t + 0.2);
-    gain2.gain.setValueAtTime(0.10, t);
-    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-
-    // Layer 3: exhaust pop (noise burst on each rev)
-    var bufSize = actx.sampleRate * 0.05;
-    var buffer = actx.createBuffer(1, bufSize, actx.sampleRate);
-    var data = buffer.getChannelData(0);
-    for(var ni=0; ni<bufSize; ni++) data[ni] = (Math.random()*2-1) * Math.exp(-ni/bufSize*8);
-    var noise = actx.createBufferSource();
-    noise.buffer = buffer;
-    var noiseGain = actx.createGain();
-    noiseGain.gain.setValueAtTime(isBst ? 0.15 : 0.07, t);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-
-    // Distortion for grit
-    var dist = actx.createWaveShaper();
-    var curve = new Float32Array(256);
-    for(var di=0; di<256; di++) {
-      var x = di*2/256-1;
-      curve[di] = (Math.PI+300)*x/(Math.PI+300*Math.abs(x));
-    }
-    dist.curve = curve;
-
-    // Connect
-    osc1.connect(dist); dist.connect(gain1); gain1.connect(actx.destination);
+    osc2.frequency.setValueAtTime(baseFreq*0.5, t);
+    osc2.frequency.exponentialRampToValueAtTime(baseFreq*1.1, t+0.08);
+    gain2.gain.setValueAtTime(0.08, t);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t+0.22);
+    osc1.connect(gain1); gain1.connect(actx.destination);
     osc2.connect(gain2); gain2.connect(actx.destination);
-    noise.connect(noiseGain); noiseGain.connect(actx.destination);
-
     osc1.start(t); osc1.stop(t+0.25);
     osc2.start(t); osc2.stop(t+0.25);
-    noise.start(t); noise.stop(t+0.06);
-
-    // Boost: add turbo whistle
-    if(isBst) {
-      var turbo = actx.createOscillator();
-      var turboG = actx.createGain();
-      turbo.type = 'sine';
-      turbo.frequency.setValueAtTime(1200, t);
-      turbo.frequency.linearRampToValueAtTime(800, t+0.3);
-      turboG.gain.setValueAtTime(0.06, t);
-      turboG.gain.exponentialRampToValueAtTime(0.001, t+0.3);
-      turbo.connect(turboG); turboG.connect(actx.destination);
-      turbo.start(t); turbo.stop(t+0.3);
-    }
   } catch(e){}
+}
+
+async function raceApplyGas() {
+  var now = Date.now();
   
-  var snap = await db.ref('rooms/'+roomCode).once('value');
-  if(!snap.exists()) return;
-  var room = snap.val();
-  
-  if(room.raceState === 'countdown') {
-    var now = Date.now();
-    if(now < room.raceStart) return; // not started yet
-  }
+  // Get latest room data (cached)
+  var room = window._lastRaceRoom;
+  if(!room) return;
   if(room.raceState === 'finished') return;
   
   var myData = room.racePlayers && room.racePlayers[myId];
   if(!myData || myData.finished) return;
-  
-  // If countdown done, switch to racing
-  if(room.raceState === 'countdown' && Date.now() >= room.raceStart) {
-    await db.ref('rooms/'+roomCode+'/raceState').set('racing');
-  }
-  
-  var curProgress = myData.progress || 0;
+  if(room.raceState === 'countdown' && now < room.raceStart) return;
   
   // Check items
+  var curProgress = myData.progress || 0;
   ITEMS.forEach(function(item, idx) {
-    if(collectedItems[idx] && Date.now() < collectedItems[idx]) return;
+    if(collectedItems[idx] && now < collectedItems[idx]) return;
     var dist = Math.abs((curProgress%1) - item.pos);
     if(dist > 0.5) dist = 1 - dist;
     if(dist < 0.035) {
-      collectedItems[idx] = Date.now() + 5000; // 5s respawn
+      collectedItems[idx] = now + 5000;
       if(item.type === 'boost') {
-        myBoostUntil = Date.now() + 2000;
-        playSound('correct');
+        myBoostUntil = now + 2000;
+        playEngineRev(true);
         for(var pi=0; pi<10; pi++) {
           var bp2 = raceGetTrackPoint(curProgress%1);
           raceParticles.push({
             x:bp2.x*raceCanvasW, y:bp2.y*raceCanvasH,
             vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6,
             r:5+Math.random()*4, color:Math.random()>0.5?'#FFD700':'#FF6600',
-            start:Date.now(), end:Date.now()+700
+            start:now, end:now+700
           });
         }
-        // Show toast
         toast('⚡ BOOST!', 'gold', 1500);
       } else if(item.type === 'oil') {
-        mySlowUntil = Date.now() + 2000;
-        playSound('wrong');
-        for(var oi=0; oi<8; oi++) {
-          var op = raceGetTrackPoint(curProgress%1);
-          raceParticles.push({
-            x:op.x*raceCanvasW, y:op.y*raceCanvasH,
-            vx:(Math.random()-0.5)*3, vy:(Math.random()-0.5)*3,
-            r:4+Math.random()*3, color:'#886600',
-            start:Date.now(), end:Date.now()+800
-          });
-        }
+        mySlowUntil = now + 2000;
         toast('🛢️ Oil slick!', 'red', 1500);
       }
     }
   });
-  
-  // Calculate speed
-  var isBoosting2 = Date.now() < myBoostUntil;
-  var isSlowed = Date.now() < mySlowUntil;
-  var speed = isBoosting2 ? 0.009 : isSlowed ? 0.0015 : 0.0038;
-  speed += Math.random() * 0.001;
-  var newProgress = curProgress + speed;
-  var newLap = myData.lap || 0;
-  
-  // Collision detection - slow down if too close to another car
+
+  // Calculate speed based on held time + boost/slow
+  var isBoosting = now < myBoostUntil;
+  var isSlowed = now < mySlowUntil;
+  var baseSpeed = isBoosting ? 0.007 : isSlowed ? 0.001 : 0.003;
+  var newProgress = curProgress + baseSpeed + Math.random()*0.0005;
+
+  // Collision check
   var collisionSlowdown = 1.0;
   Object.entries(room.racePlayers||{}).forEach(function(e) {
     if(e[0] === myId) return;
@@ -4853,47 +4833,55 @@ window.raceGas = async function() {
     var otherProg = (other.progress||0) % 1;
     var dist = Math.abs(myProg - otherProg);
     if(dist > 0.5) dist = 1 - dist;
-    if(dist < 0.02) {
-      // Very close - bounce/slow down
-      collisionSlowdown = 0.3;
-      // Spawn collision particles
+    if(dist < 0.018) {
+      collisionSlowdown = 0.2;
       var cp = raceGetTrackPoint(myProg);
-      for(var ci=0; ci<5; ci++) {
-        raceParticles.push({
-          x: cp.x*raceCanvasW, y: cp.y*raceCanvasH,
-          vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
-          r: 5, color: '#FF4444',
-          start: Date.now(), end: Date.now()+500
-        });
-      }
-      playSound('wrong');
+      raceParticles.push({
+        x:cp.x*raceCanvasW, y:cp.y*raceCanvasH,
+        vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6,
+        r:5, color:'#FF4444', start:now, end:now+500
+      });
     }
   });
-  newProgress = (myData.progress||0) + (newProgress-(myData.progress||0)) * collisionSlowdown;
+  newProgress = curProgress + (newProgress-curProgress)*collisionSlowdown;
 
   // Check lap completion
-  if(Math.floor(newProgress) > Math.floor(myData.progress || 0)) {
-    newLap = newLap + 1;
+  var newLap = myData.lap || 0;
+  if(Math.floor(newProgress) > Math.floor(curProgress)) {
+    newLap++;
     if(newLap >= TOTAL_LAPS) {
-      // Finished!
-      var finishTime = Date.now() - (room.raceStart || Date.now());
-      var pts = Math.max(100, 1000 - Object.values(room.racePlayers||{}).filter(function(p){return p.finished;}).length * 200);
+      var finishTime = now - (room.raceStart || now);
+      var pts = Math.max(100, 1000 - Object.values(room.racePlayers||{}).filter(function(p){return p.finished;}).length*200);
       await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
-        progress: newProgress, lap: TOTAL_LAPS,
-        finished: true, finishTime: finishTime, score: pts
+        progress:newProgress, lap:TOTAL_LAPS,
+        finished:true, finishTime:finishTime, score:pts
       });
       playSound('correct');
-      // Check if all finished
       if(isHost) setTimeout(checkRaceEnd, 1000);
       return;
     }
     playSound('start');
   }
-  
-  await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
-    progress: newProgress, lap: newLap
-  });
-};
+
+  // Update local cache immediately (smooth visual)
+  if(window._lastRaceRoom && window._lastRaceRoom.racePlayers) {
+    window._lastRaceRoom.racePlayers[myId].progress = newProgress;
+    window._lastRaceRoom.racePlayers[myId].lap = newLap;
+  }
+
+  // Write to Firebase max every 150ms (not every 50ms loop)
+  if(now - _gasLastFirebase > 150) {
+    _gasLastFirebase = now;
+    db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
+      progress: newProgress, lap: newLap
+    });
+    // Switch to racing state if still countdown
+    if(room.raceState === 'countdown' && now >= room.raceStart) {
+      db.ref('rooms/'+roomCode+'/raceState').set('racing');
+    }
+  }
+}
+
 
 async function checkRaceEnd() {
   var snap = await db.ref('rooms/'+roomCode).once('value');
@@ -5443,12 +5431,14 @@ showGameGuide = function(game) {
     </div>
 
     <!-- GAS PEDAL -->
-    <button id="raceGasBtn" onclick="raceGas()"
+    <button id="raceGasBtn"
+      onmousedown="raceGasStart()" onmouseup="raceGasStop()" onmouseleave="raceGasStop()"
+      ontouchstart="raceGasStart()" ontouchend="raceGasStop()" ontouchcancel="raceGasStop()"
       style="width:100%;padding:20px;background:linear-gradient(135deg,#CC3333,#FF5555);
              border:none;border-radius:16px;color:#FFF;font-size:1.4rem;font-weight:700;
              font-family:'Heebo',sans-serif;cursor:pointer;user-select:none;
              -webkit-user-select:none;touch-action:manipulation;
-             box-shadow:0 4px 0 #881111;active:transform:translateY(2px);"
+             box-shadow:0 4px 0 #881111;"
       id="txt-gasBtn">
       🔥 GAS!
     </button>
