@@ -13,209 +13,7 @@
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
-// ============================================================
-// ===== FROG CATCHER =========================================
-// ============================================================
-var frogTimers={};
-var frogBoardW=400,frogBoardH=280;
-var PLAYER_COLORS=['#E05050','#4A8FD4','#4CAF7A','#9B59B6','#E0A040','#C9A84C'];
-var frogSyncInterval=null;
 
-function initFrog(){
-  var players=Object.keys(scores);
-  var frogData={};
-  players.forEach(function(id,i){
-    frogData[id]={
-      name:(scores[id]||{name:'?'}).name,
-      color:PLAYER_COLORS[i%PLAYER_COLORS.length],
-      frogs:3, // each player starts with 3 frogs
-      alive:true,
-      score:0
-    };
-  });
-  db.ref('rooms/'+roomCode).update({
-    status:'frog',frogPlayers:frogData,
-    frogActive:{}, // active frogs on board: {id: {x,y,owner,id}}
-    frogRound:1,frogStart:Date.now(),chat:null
-  });
-  systemMsg('🐸 Frog Catcher started!');
-  // Host starts spawning frogs
-  if(isHost) setTimeout(frogSpawnLoop,500);
-}
-
-var _frogSpawning=false;
-function frogSpawnLoop(){
-  if(_frogSpawning)return;
-  _frogSpawning=true;
-  // Spawn frogs for each alive player every 2-4 seconds
-  function spawnRound(){
-    db.ref('rooms/'+roomCode).once('value').then(function(snap){
-      if(!snap.exists()||snap.val().status!=='frog'){_frogSpawning=false;return;}
-      var room=snap.val();
-      var alivePlayers=Object.entries(room.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
-      if(alivePlayers.length<=1){_frogSpawning=false;return;}
-      var updates={};
-      // Spawn 1-2 frogs per alive player
-      alivePlayers.forEach(function(entry){
-        var pid=entry[0],pd=entry[1];
-        var numSpawn=Math.floor(Math.random()*2)+1;
-        for(var i=0;i<numSpawn;i++){
-          var fid='f_'+Date.now()+'_'+pid+'_'+Math.random().toString(36).substr(2,4);
-          updates['frogActive/'+fid]={
-            x:Math.floor(Math.random()*85)+5, // % of board
-            y:Math.floor(Math.random()*80)+5,
-            owner:pid,
-            color:pd.color,
-            spawnTime:Date.now(),
-            lifetime:2000+Math.random()*2000 // 2-4 seconds visible
-          };
-        }
-      });
-      db.ref('rooms/'+roomCode).update(updates);
-      // Clean up expired frogs
-      var active=room.frogActive||{};
-      var now=Date.now();
-      var removes={};
-      Object.entries(active).forEach(function(e){
-        if(now-e[1].spawnTime>e[1].lifetime){removes['frogActive/'+e[0]]=null;}
-      });
-      if(Object.keys(removes).length>0) db.ref('rooms/'+roomCode).update(removes);
-      // Continue loop
-      setTimeout(spawnRound,2000+Math.random()*1500);
-    });
-  }
-  spawnRound();
-}
-
-function loadFrog(room){
-  if(!room.frogPlayers)return;
-  showScreen('frog');
-  document.getElementById('frogCode').textContent=roomCode;
-  var myData=room.frogPlayers[myId]||{};
-  var isAlive=myData.alive!==false;
-  // Board sizing
-  var board=document.getElementById('frogBoard');
-  frogBoardW=Math.min(400,window.innerWidth-60);
-  frogBoardH=Math.round(frogBoardW*0.7);
-  board.style.width=frogBoardW+'px';
-  board.style.height=frogBoardH+'px';
-  // My frogs count
-  var myFrogsEl=document.getElementById('frogMyFrogs');
-  if(myFrogsEl)myFrogsEl.textContent='🐸 My frogs: '+(myData.frogs||0);
-  // Eliminated?
-  var elimEl=document.getElementById('frogEliminated');
-  if(elimEl)elimEl.style.display=isAlive?'none':'block';
-  // Render active frogs
-  renderFrogBoard(room.frogActive||{},room.frogPlayers||{});
-  // Sidebar scores
-  var scoreData={};
-  Object.entries(room.frogPlayers||{}).forEach(function(e){
-    scoreData[e[0]]={name:e[1].name,score:e[1].score||0};
-  });
-  renderFrogSidebar(room.frogPlayers||{});
-  renderHostControls('frogHostControls',
-    isHost?'<button class="host-ctrl-btn danger" onclick="confirmEndGame()">End Game</button>':'');
-}
-
-function renderFrogBoard(active,players){
-  var board=document.getElementById('frogBoard');
-  if(!board)return;
-  // Clear old frogs
-  board.innerHTML='';
-  // Draw each frog
-  Object.entries(active).forEach(function(entry){
-    var fid=entry[0],f=entry[1];
-    var el=document.createElement('div');
-    el.style.cssText='position:absolute;font-size:1.8rem;cursor:pointer;transition:transform 0.1s;user-select:none;-webkit-user-select:none;';
-    el.style.left=(f.x/100*frogBoardW-20)+'px';
-    el.style.top=(f.y/100*frogBoardH-20)+'px';
-    el.textContent='🐸';
-    el.style.filter='drop-shadow(0 0 4px '+f.color+')';
-    el.dataset.fid=fid;
-    el.dataset.owner=f.owner;
-    el.dataset.color=f.color;
-    // Fade out near end of lifetime
-    var age=Date.now()-f.spawnTime;
-    var life=f.lifetime||3000;
-    if(age>life*0.7)el.style.opacity=String(1-(age-life*0.7)/(life*0.3));
-    el.addEventListener('click',function(e){
-      e.stopPropagation();
-      catchSpecificFrog(fid,f.owner);
-    });
-    board.appendChild(el);
-  });
-}
-
-window.catchFrog=function(e){
-  // Tap anywhere on board - handled by individual frog click
-};
-
-window.catchSpecificFrog=async function(fid,ownerPid){
-  // Can't catch your own frogs
-  if(ownerPid===myId)return;
-  var snap=await db.ref('rooms/'+roomCode).once('value');
-  if(!snap.exists())return;
-  var room=snap.val();
-  if(room.status!=='frog')return;
-  if(!(room.frogActive&&room.frogActive[fid]))return; // already caught
-  // Remove frog from board
-  var updates={'frogActive/'+fid:null};
-  // Reduce owner's frog count
-  var ownerData=room.frogPlayers[ownerPid]||{frogs:3};
-  var newFrogCount=Math.max(0,(ownerData.frogs||3)-1);
-  updates['frogPlayers/'+ownerPid+'/frogs']=newFrogCount;
-  updates['frogPlayers/'+myId+'/score']=(room.frogPlayers[myId]?.score||0)+100;
-  if(newFrogCount<=0){
-    // Player eliminated!
-    updates['frogPlayers/'+ownerPid+'/alive']=false;
-    var ownerName=ownerData.name||'?';
-    db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'💥 '+ownerName+' is eliminated!',ts:Date.now()});
-    playSound('correct');
-    // Check if only 1 player left
-    var aliveCount=Object.values(room.frogPlayers||{}).filter(function(p){return p.alive!==false;}).length;
-    if(aliveCount<=2){
-      // Only winner left
-      setTimeout(async function(){
-        var finalSnap=await db.ref('rooms/'+roomCode).once('value');
-        if(!finalSnap.exists())return;
-        var fr=finalSnap.val();
-        var stillAlive=Object.entries(fr.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
-        if(stillAlive.length<=1){
-          var fs={};Object.entries(fr.frogPlayers||{}).forEach(function(e){fs[e[0]]=e[1].score||0;});
-          if(stillAlive.length===1)fs[stillAlive[0][0]]=(fs[stillAlive[0][0]]||0)+500;
-          db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
-        }
-      },1500);
-    }
-  } else {
-    playSound('wrong');
-  }
-  await db.ref('rooms/'+roomCode).update(updates);
-};
-
-function renderFrogSidebar(players){
-  var el=document.getElementById('frogSidebarScores');
-  if(!el)return;
-  el.innerHTML=Object.entries(players).map(function(entry){
-    var id=entry[0],p=entry[1];
-    var frogs=p.frogs||0;
-    var alive=p.alive!==false;
-    return '<div class="sidebar-player '+(id===myId?'me':'')+'" style="opacity:'+(alive?1:0.4)+'">'+
-      '<span class="sidebar-player-name">'+(alive?'🐸'.repeat(Math.min(frogs,3)):'💀')+' '+p.name+(id===myId?' 👤':'')+'</span>'+
-      '<span class="sidebar-player-pts">'+(p.score||0)+'</span>'+
-    '</div>';
-  }).join('');
-}
-
-// Start frog spawn loop for host when game starts
-var _frogListenerAdded=false;
-var _origLoadFrog=loadFrog;
-loadFrog=function(room){
-  _origLoadFrog(room);
-  if(isHost&&!_frogSpawning){
-    frogSpawnLoop();
-  }
-};
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -3580,6 +3378,211 @@ function initComplete(){initTrivia();}
 function initNumber(){initTrivia();}
 
 
+
+// ============================================================
+// ===== FROG CATCHER =========================================
+// ============================================================
+var frogTimers={};
+var frogBoardW=400,frogBoardH=280;
+var PLAYER_COLORS=['#E05050','#4A8FD4','#4CAF7A','#9B59B6','#E0A040','#C9A84C'];
+var frogSyncInterval=null;
+
+function initFrog(){
+  var players=Object.keys(scores);
+  var frogData={};
+  players.forEach(function(id,i){
+    frogData[id]={
+      name:(scores[id]||{name:'?'}).name,
+      color:PLAYER_COLORS[i%PLAYER_COLORS.length],
+      frogs:3, // each player starts with 3 frogs
+      alive:true,
+      score:0
+    };
+  });
+  db.ref('rooms/'+roomCode).update({
+    status:'frog',frogPlayers:frogData,
+    frogActive:{}, // active frogs on board: {id: {x,y,owner,id}}
+    frogRound:1,frogStart:Date.now(),chat:null
+  });
+  systemMsg('🐸 Frog Catcher started!');
+  // Host starts spawning frogs
+  if(isHost) setTimeout(frogSpawnLoop,500);
+}
+
+var _frogSpawning=false;
+function frogSpawnLoop(){
+  if(_frogSpawning)return;
+  _frogSpawning=true;
+  // Spawn frogs for each alive player every 2-4 seconds
+  function spawnRound(){
+    db.ref('rooms/'+roomCode).once('value').then(function(snap){
+      if(!snap.exists()||snap.val().status!=='frog'){_frogSpawning=false;return;}
+      var room=snap.val();
+      var alivePlayers=Object.entries(room.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
+      if(alivePlayers.length<=1){_frogSpawning=false;return;}
+      var updates={};
+      // Spawn 1-2 frogs per alive player
+      alivePlayers.forEach(function(entry){
+        var pid=entry[0],pd=entry[1];
+        var numSpawn=Math.floor(Math.random()*2)+1;
+        for(var i=0;i<numSpawn;i++){
+          var fid='f_'+Date.now()+'_'+pid+'_'+Math.random().toString(36).substr(2,4);
+          updates['frogActive/'+fid]={
+            x:Math.floor(Math.random()*85)+5, // % of board
+            y:Math.floor(Math.random()*80)+5,
+            owner:pid,
+            color:pd.color,
+            spawnTime:Date.now(),
+            lifetime:2000+Math.random()*2000 // 2-4 seconds visible
+          };
+        }
+      });
+      db.ref('rooms/'+roomCode).update(updates);
+      // Clean up expired frogs
+      var active=room.frogActive||{};
+      var now=Date.now();
+      var removes={};
+      Object.entries(active).forEach(function(e){
+        if(now-e[1].spawnTime>e[1].lifetime){removes['frogActive/'+e[0]]=null;}
+      });
+      if(Object.keys(removes).length>0) db.ref('rooms/'+roomCode).update(removes);
+      // Continue loop
+      setTimeout(spawnRound,2000+Math.random()*1500);
+    });
+  }
+  spawnRound();
+}
+
+function loadFrog(room){
+  if(!room.frogPlayers)return;
+  showScreen('frog');
+  document.getElementById('frogCode').textContent=roomCode;
+  var myData=room.frogPlayers[myId]||{};
+  var isAlive=myData.alive!==false;
+  // Board sizing
+  var board=document.getElementById('frogBoard');
+  frogBoardW=Math.min(400,window.innerWidth-60);
+  frogBoardH=Math.round(frogBoardW*0.7);
+  board.style.width=frogBoardW+'px';
+  board.style.height=frogBoardH+'px';
+  // My frogs count
+  var myFrogsEl=document.getElementById('frogMyFrogs');
+  if(myFrogsEl)myFrogsEl.textContent='🐸 My frogs: '+(myData.frogs||0);
+  // Eliminated?
+  var elimEl=document.getElementById('frogEliminated');
+  if(elimEl)elimEl.style.display=isAlive?'none':'block';
+  // Render active frogs
+  renderFrogBoard(room.frogActive||{},room.frogPlayers||{});
+  // Sidebar scores
+  var scoreData={};
+  Object.entries(room.frogPlayers||{}).forEach(function(e){
+    scoreData[e[0]]={name:e[1].name,score:e[1].score||0};
+  });
+  renderFrogSidebar(room.frogPlayers||{});
+  renderHostControls('frogHostControls',
+    isHost?'<button class="host-ctrl-btn danger" onclick="confirmEndGame()">End Game</button>':'');
+}
+
+function renderFrogBoard(active,players){
+  var board=document.getElementById('frogBoard');
+  if(!board)return;
+  // Clear old frogs
+  board.innerHTML='';
+  // Draw each frog
+  Object.entries(active).forEach(function(entry){
+    var fid=entry[0],f=entry[1];
+    var el=document.createElement('div');
+    el.style.cssText='position:absolute;font-size:1.8rem;cursor:pointer;transition:transform 0.1s;user-select:none;-webkit-user-select:none;';
+    el.style.left=(f.x/100*frogBoardW-20)+'px';
+    el.style.top=(f.y/100*frogBoardH-20)+'px';
+    el.textContent='🐸';
+    el.style.filter='drop-shadow(0 0 4px '+f.color+')';
+    el.dataset.fid=fid;
+    el.dataset.owner=f.owner;
+    el.dataset.color=f.color;
+    // Fade out near end of lifetime
+    var age=Date.now()-f.spawnTime;
+    var life=f.lifetime||3000;
+    if(age>life*0.7)el.style.opacity=String(1-(age-life*0.7)/(life*0.3));
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      catchSpecificFrog(fid,f.owner);
+    });
+    board.appendChild(el);
+  });
+}
+
+window.catchFrog=function(e){
+  // Tap anywhere on board - handled by individual frog click
+};
+
+window.catchSpecificFrog=async function(fid,ownerPid){
+  // Can't catch your own frogs
+  if(ownerPid===myId)return;
+  var snap=await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists())return;
+  var room=snap.val();
+  if(room.status!=='frog')return;
+  if(!(room.frogActive&&room.frogActive[fid]))return; // already caught
+  // Remove frog from board
+  var updates={};
+  updates['frogActive/'+fid]=null;
+  // Reduce owner's frog count
+  var ownerData=room.frogPlayers[ownerPid]||{frogs:3};
+  var newFrogCount=Math.max(0,(ownerData.frogs||3)-1);
+  updates['frogPlayers/'+ownerPid+'/frogs']=newFrogCount;
+  updates['frogPlayers/'+myId+'/score']=(room.frogPlayers[myId]?.score||0)+100;
+  if(newFrogCount<=0){
+    // Player eliminated!
+    updates['frogPlayers/'+ownerPid+'/alive']=false;
+    var ownerName=ownerData.name||'?';
+    db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'💥 '+ownerName+' is eliminated!',ts:Date.now()});
+    playSound('correct');
+    // Check if only 1 player left
+    var aliveCount=Object.values(room.frogPlayers||{}).filter(function(p){return p.alive!==false;}).length;
+    if(aliveCount<=2){
+      // Only winner left
+      setTimeout(async function(){
+        var finalSnap=await db.ref('rooms/'+roomCode).once('value');
+        if(!finalSnap.exists())return;
+        var fr=finalSnap.val();
+        var stillAlive=Object.entries(fr.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
+        if(stillAlive.length<=1){
+          var fs={};Object.entries(fr.frogPlayers||{}).forEach(function(e){fs[e[0]]=e[1].score||0;});
+          if(stillAlive.length===1)fs[stillAlive[0][0]]=(fs[stillAlive[0][0]]||0)+500;
+          db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+        }
+      },1500);
+    }
+  } else {
+    playSound('wrong');
+  }
+  await db.ref('rooms/'+roomCode).update(updates);
+};
+
+function renderFrogSidebar(players){
+  var el=document.getElementById('frogSidebarScores');
+  if(!el)return;
+  el.innerHTML=Object.entries(players).map(function(entry){
+    var id=entry[0],p=entry[1];
+    var frogs=p.frogs||0;
+    var alive=p.alive!==false;
+    return '<div class="sidebar-player '+(id===myId?'me':'')+'" style="opacity:'+(alive?1:0.4)+'">'+
+      '<span class="sidebar-player-name">'+(alive?'🐸'.repeat(Math.min(frogs,3)):'💀')+' '+p.name+(id===myId?' 👤':'')+'</span>'+
+      '<span class="sidebar-player-pts">'+(p.score||0)+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+// Start frog spawn loop for host when game starts
+var _frogListenerAdded=false;
+var _origLoadFrog=loadFrog;
+loadFrog=function(room){
+  _origLoadFrog(room);
+  if(isHost&&!_frogSpawning){
+    frogSpawnLoop();
+  }
+};
 </script>
 
 <!-- FLOATING SETTINGS (visible on all screens) -->
