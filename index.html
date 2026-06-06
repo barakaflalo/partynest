@@ -4060,9 +4060,17 @@ var raceAnimFrame = null;
 var raceLastUpdate = 0;
 var raceCanvasW = 400;
 var raceCanvasH = 300;
-var myBoostUntil = 0;    // timestamp when boost ends
-var mySpeedTrail = [];   // last positions for speed trail effect
-var raceParticles = [];  // boost particles
+var myBoostUntil = 0;
+var mySlowUntil = 0;     // oil slick slow
+var mySpeedTrail = [];
+var raceParticles = [];
+var ITEMS = [
+  {type:'boost', pos:0.25, icon:'⚡', color:'#FFD700'},
+  {type:'boost', pos:0.60, icon:'⚡', color:'#FFD700'},
+  {type:'oil',   pos:0.40, icon:'🛢️', color:'#444400'},
+  {type:'oil',   pos:0.80, icon:'🛢️', color:'#444400'},
+];
+var collectedItems = {}; // itemIdx -> respawnTime
 
 // Get point along track (0-1 = full lap)
 function raceGetTrackPoint(progress) {
@@ -4333,25 +4341,24 @@ function drawRaceTrack(room) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Boost pads
-  BOOST_PADS.forEach(function(bpos) {
-    var bp = raceGetTrackPoint(bpos);
-    var ba = raceGetAngle(bpos) + Math.PI/2;
-    var bw = trackW * 0.6;
-    var pulsing = 0.7 + 0.3 * Math.sin(now2 / 200);
-    ctx.save();
-    ctx.translate(bp.x*W, bp.y*H);
-    ctx.rotate(ba);
+  // Draw items on track
+  ITEMS.forEach(function(item, idx) {
+    // Skip if recently collected
+    if(collectedItems[idx] && Date.now() < collectedItems[idx]) return;
+    var ip = raceGetTrackPoint(item.pos);
+    var pulsing = 0.75 + 0.25 * Math.sin(now2/250 + idx);
     ctx.globalAlpha = pulsing;
-    ctx.fillStyle = '#FFD700';
-    ctx.fillRect(-bw/2, -8, bw, 16);
-    // Arrow on pad
-    ctx.fillStyle = '#FF6600';
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = '18px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('⚡', 0, 4);
+    ctx.fillText(item.icon, ip.x*W, ip.y*H+6);
+    // Glow circle
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = pulsing * 0.5;
+    ctx.beginPath();
+    ctx.arc(ip.x*W, ip.y*H, 14, 0, Math.PI*2);
+    ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.restore();
   });
   
   // Start/Finish line - checkered
@@ -4490,8 +4497,23 @@ function drawRaceTrack(room) {
 }
 
 window.raceGas = async function() {
-  if(raceLastUpdate && Date.now() - raceLastUpdate < 50) return; // throttle
+  if(raceLastUpdate && Date.now() - raceLastUpdate < 60) return;
   raceLastUpdate = Date.now();
+  // Engine rev sound (subtle)
+  try {
+    var ctx2 = new (window.AudioContext||window.webkitAudioContext)();
+    var osc = ctx2.createOscillator();
+    var gain = ctx2.createGain();
+    osc.connect(gain);
+    gain.connect(ctx2.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, ctx2.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, ctx2.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, ctx2.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.08);
+    osc.start(ctx2.currentTime);
+    osc.stop(ctx2.currentTime + 0.08);
+  } catch(e){}
   
   var snap = await db.ref('rooms/'+roomCode).once('value');
   if(!snap.exists()) return;
@@ -4511,37 +4533,81 @@ window.raceGas = async function() {
     await db.ref('rooms/'+roomCode+'/raceState').set('racing');
   }
   
-  // Check if on boost pad
   var curProgress = myData.progress || 0;
-  var onBoostPad = BOOST_PADS.some(function(bp) {
-    var dist = Math.abs((curProgress % 1) - bp);
-    return dist < 0.04 || dist > 0.96;
+  
+  // Check items
+  ITEMS.forEach(function(item, idx) {
+    if(collectedItems[idx] && Date.now() < collectedItems[idx]) return;
+    var dist = Math.abs((curProgress%1) - item.pos);
+    if(dist > 0.5) dist = 1 - dist;
+    if(dist < 0.035) {
+      collectedItems[idx] = Date.now() + 5000; // 5s respawn
+      if(item.type === 'boost') {
+        myBoostUntil = Date.now() + 2000;
+        playSound('correct');
+        for(var pi=0; pi<10; pi++) {
+          var bp2 = raceGetTrackPoint(curProgress%1);
+          raceParticles.push({
+            x:bp2.x*raceCanvasW, y:bp2.y*raceCanvasH,
+            vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6,
+            r:5+Math.random()*4, color:Math.random()>0.5?'#FFD700':'#FF6600',
+            start:Date.now(), end:Date.now()+700
+          });
+        }
+        // Show toast
+        toast('⚡ BOOST!', 'gold', 1500);
+      } else if(item.type === 'oil') {
+        mySlowUntil = Date.now() + 2000;
+        playSound('wrong');
+        for(var oi=0; oi<8; oi++) {
+          var op = raceGetTrackPoint(curProgress%1);
+          raceParticles.push({
+            x:op.x*raceCanvasW, y:op.y*raceCanvasH,
+            vx:(Math.random()-0.5)*3, vy:(Math.random()-0.5)*3,
+            r:4+Math.random()*3, color:'#886600',
+            start:Date.now(), end:Date.now()+800
+          });
+        }
+        toast('🛢️ Oil slick!', 'red', 1500);
+      }
+    }
   });
   
-  if(onBoostPad) {
-    myBoostUntil = Date.now() + BOOST_DURATION;
-    playSound('correct');
-    // Spawn boost particles
-    var bPt = raceGetTrackPoint(curProgress % 1);
-    for(var pi=0; pi<8; pi++) {
-      raceParticles.push({
-        x: bPt.x * raceCanvasW, y: bPt.y * raceCanvasH,
-        vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
-        r: 4+Math.random()*4,
-        color: Math.random()>0.5?'#FFD700':'#FF6600',
-        start: Date.now(), end: Date.now()+600
-      });
-    }
-  }
-  
-  // Accelerate
+  // Calculate speed
   var isBoosting2 = Date.now() < myBoostUntil;
-  var boost = isBoosting2 
-    ? (BOOST_STRENGTH + Math.random()*0.002)
-    : (0.0035 + Math.random()*0.002);
-  var newProgress = curProgress + boost;
+  var isSlowed = Date.now() < mySlowUntil;
+  var speed = isBoosting2 ? 0.009 : isSlowed ? 0.0015 : 0.0038;
+  speed += Math.random() * 0.001;
+  var newProgress = curProgress + speed;
   var newLap = myData.lap || 0;
   
+  // Collision detection - slow down if too close to another car
+  var collisionSlowdown = 1.0;
+  Object.entries(room.racePlayers||{}).forEach(function(e) {
+    if(e[0] === myId) return;
+    var other = e[1];
+    var myProg = newProgress % 1;
+    var otherProg = (other.progress||0) % 1;
+    var dist = Math.abs(myProg - otherProg);
+    if(dist > 0.5) dist = 1 - dist;
+    if(dist < 0.02) {
+      // Very close - bounce/slow down
+      collisionSlowdown = 0.3;
+      // Spawn collision particles
+      var cp = raceGetTrackPoint(myProg);
+      for(var ci=0; ci<5; ci++) {
+        raceParticles.push({
+          x: cp.x*raceCanvasW, y: cp.y*raceCanvasH,
+          vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6,
+          r: 5, color: '#FF4444',
+          start: Date.now(), end: Date.now()+500
+        });
+      }
+      playSound('wrong');
+    }
+  });
+  newProgress = (myData.progress||0) + (newProgress-(myData.progress||0)) * collisionSlowdown;
+
   // Check lap completion
   if(Math.floor(newProgress) > Math.floor(myData.progress || 0)) {
     newLap = newLap + 1;
@@ -4594,13 +4660,43 @@ function showRaceResults(room) {
     return b[1].progress - a[1].progress;
   });
   var medals = ['🥇','🥈','🥉'];
-  if(winnerEl && sorted[0]) winnerEl.textContent = medals[0]+' '+(sorted[0][1].name||'?')+' wins!';
+  var winner = sorted[0];
+  if(winnerEl && winner) {
+    winnerEl.innerHTML = medals[0]+' <span style="color:'+winner[1].color+'">'+
+      (winner[1].name||'?')+'</span> wins! 🏆';
+  }
   if(resultsList) {
-    resultsList.innerHTML = sorted.map(function(e,i){
+    resultsList.innerHTML = '<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">'+
+    sorted.map(function(e,i){
       var p = e[1];
-      var t = p.finishTime ? Math.floor(p.finishTime/1000)+'s' : 'DNF';
-      return (medals[i]||'#'+(i+1))+' '+p.name+' — '+t;
-    }).join('<br>');
+      var mins = p.finishTime ? Math.floor(p.finishTime/60000) : 0;
+      var secs = p.finishTime ? Math.floor((p.finishTime%60000)/1000) : 0;
+      var ms = p.finishTime ? Math.floor((p.finishTime%1000)/10) : 0;
+      var timeStr = p.finishTime 
+        ? (mins>0 ? mins+'m ' : '')+secs+'.'+('0'+ms).slice(-2)+'s' 
+        : 'DNF';
+      var isMe = e[0] === myId;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;'+
+        'background:'+(isMe?'rgba(201,168,76,0.15)':'rgba(255,255,255,0.05)')+';'+
+        'border-radius:8px;border-left:3px solid '+p.color+';">'+
+        '<span style="font-size:1.1rem;">'+(medals[i]||'#'+(i+1))+'</span>'+
+        '<span style="flex:1;color:'+p.color+';font-weight:700;">'+(p.name||'?')+(isMe?' 👤':'')+'</span>'+
+        '<span style="color:#999;font-size:0.85rem;font-family:Cinzel,serif;">'+timeStr+'</span>'+
+      '</div>';
+    }).join('')+'</div>';
+  }
+  // Confetti for winner
+  if(winner && winner[0] === myId) {
+    for(var ci2=0; ci2<20; ci2++) {
+      setTimeout(function(){
+        raceParticles.push({
+          x: Math.random()*raceCanvasW, y: 0,
+          vx:(Math.random()-0.5)*3, vy: 2+Math.random()*3,
+          r:5, color:['#FFD700','#FF5555','#55FF55','#5599FF'][Math.floor(Math.random()*4)],
+          start:Date.now(), end:Date.now()+2000
+        });
+      }, ci2*100);
+    }
   }
 }
 
