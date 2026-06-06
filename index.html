@@ -526,6 +526,22 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
             </div>
           </div>
         </div>
+        <div class="settings-row" id="frogDiffRow" style="display:none;">
+          <span class="settings-label">🐸 Difficulty</span>
+          <div class="settings-opts">
+            <button class="settings-opt active" onclick="setSetting('frogDiff','easy',this)">😊 Easy</button>
+            <button class="settings-opt" onclick="setSetting('frogDiff','medium',this)">😤 Medium</button>
+            <button class="settings-opt" onclick="setSetting('frogDiff','hard',this)">💀 Hard</button>
+          </div>
+        </div>
+        <div class="settings-row" id="frogFrogsRow" style="display:none;">
+          <span class="settings-label">🐸 Frogs each</span>
+          <div class="settings-opts">
+            <button class="settings-opt" onclick="setSetting('frogCount',3,this)">3</button>
+            <button class="settings-opt active" onclick="setSetting('frogCount',5,this)">5</button>
+            <button class="settings-opt" onclick="setSetting('frogCount',7,this)">7</button>
+          </div>
+        </div>
         <div class="settings-row">
           <span class="settings-label" id="txt-categoryLabel">Category</span>
           <div class="settings-opts" id="settingsCategory">
@@ -764,6 +780,13 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     <div style="display:flex;gap:10px;width:100%;">
       <button class="home-btn btn-gold" style="flex:1;" onclick="backToLobby()" data-i="playAgain">שחק שוב 🔄</button>
       <button class="home-btn btn-outline" style="flex:1;" onclick="leaveRoom()" data-i="leave">יציאה</button>
+    </div>
+    <!-- Game history -->
+    <div id="historySection" style="width:100%;margin-top:8px;"></div>
+    <!-- WYR vote summary -->
+    <div id="wyrSummarySection" style="width:100%;margin-top:12px;display:none;">
+      <div style="font-size:0.72rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:10px;text-align:center;">🔮 VOTE SUMMARY</div>
+      <div id="wyrSummaryContent"></div>
     </div>
   </div>
 </div>
@@ -1445,7 +1468,7 @@ window.createRoom=async function(){
 };
 
 // ===== ROOM SETTINGS =====
-var roomSettings={numQ:10,timeQ:20,category:'all',bombDur:30,bombDiff:'easy'};
+var roomSettings={numQ:10,timeQ:20,category:'all',bombDur:30,bombDiff:'easy',frogDiff:'easy',frogCount:5};
 
 window.setSetting=function(key,val,btn){
   roomSettings[key]=val;
@@ -3389,23 +3412,24 @@ var frogSyncInterval=null;
 
 function initFrog(){
   var players=Object.keys(scores);
+  var diff=roomSettings.frogDiff||'easy';
+  var frogsEach=roomSettings.frogCount||5;
   var frogData={};
   players.forEach(function(id,i){
     frogData[id]={
       name:(scores[id]||{name:'?'}).name,
       color:PLAYER_COLORS[i%PLAYER_COLORS.length],
-      frogs:3, // each player starts with 3 frogs
+      frogs:frogsEach,
       alive:true,
       score:0
     };
   });
   db.ref('rooms/'+roomCode).update({
     status:'frog',frogPlayers:frogData,
-    frogActive:{}, // active frogs on board: {id: {x,y,owner,id}}
+    frogActive:{},frogDiff:diff,frogCount:frogsEach,
     frogRound:1,frogStart:Date.now(),chat:null
   });
-  systemMsg('🐸 Frog Catcher started!');
-  // Host starts spawning frogs
+  systemMsg('🐸 Frog Catcher started! Difficulty: '+diff);
   if(isHost) setTimeout(frogSpawnLoop,500);
 }
 
@@ -3422,21 +3446,42 @@ function frogSpawnLoop(){
       if(alivePlayers.length<=1){_frogSpawning=false;return;}
       var updates={};
       // Spawn 1-2 frogs per alive player
+      var diff3=room.frogDiff||'easy';
+      // Adjust spawn speed by difficulty
+      var baseLife=diff3==='hard'?1200:diff3==='medium'?1700:2500;
+      var lifeVariance=diff3==='hard'?1000:diff3==='medium'?1500:2000;
       alivePlayers.forEach(function(entry){
         var pid=entry[0],pd=entry[1];
-        var numSpawn=Math.floor(Math.random()*2)+1;
+        var numSpawn=diff3==='hard'?3:diff3==='medium'?2:1;
         for(var i=0;i<numSpawn;i++){
           var fid='f_'+Date.now()+'_'+pid+'_'+Math.random().toString(36).substr(2,4);
           updates['frogActive/'+fid]={
-            x:Math.floor(Math.random()*85)+5, // % of board
+            x:Math.floor(Math.random()*85)+5,
             y:Math.floor(Math.random()*80)+5,
             owner:pid,
             color:pd.color,
             spawnTime:Date.now(),
-            lifetime:2000+Math.random()*2000 // 2-4 seconds visible
+            lifetime:baseLife+Math.random()*lifeVariance,
+            type:'frog'
           };
         }
       });
+      // Add fox decoys for medium/hard
+      if(diff3==='medium'||diff3==='hard'){
+        var foxCount=diff3==='hard'?4:2;
+        for(var fi=0;fi<foxCount;fi++){
+          var fxid='fox_'+Date.now()+'_'+fi;
+          updates['frogActive/'+fxid]={
+            x:Math.floor(Math.random()*85)+5,
+            y:Math.floor(Math.random()*80)+5,
+            owner:'fox',
+            color:'#FF6600',
+            spawnTime:Date.now(),
+            lifetime:baseLife+Math.random()*lifeVariance,
+            type:'fox'
+          };
+        }
+      }
       db.ref('rooms/'+roomCode).update(updates);
       // Clean up expired frogs
       var active=room.frogActive||{};
@@ -3447,7 +3492,8 @@ function frogSpawnLoop(){
       });
       if(Object.keys(removes).length>0) db.ref('rooms/'+roomCode).update(removes);
       // Continue loop
-      setTimeout(spawnRound,2000+Math.random()*1500);
+      var nextDelay=diff3==='hard'?800+Math.random()*700:diff3==='medium'?1200+Math.random()*1000:2000+Math.random()*1500;
+      setTimeout(spawnRound,nextDelay);
     });
   }
   spawnRound();
@@ -3467,7 +3513,12 @@ function loadFrog(room){
   board.style.height=frogBoardH+'px';
   // My frogs count
   var myFrogsEl=document.getElementById('frogMyFrogs');
-  if(myFrogsEl)myFrogsEl.textContent='🐸 My frogs: '+(myData.frogs||0);
+  var frogsLeft=myData.frogs||0;
+  var totalFrogs=room.frogCount||5;
+  if(myFrogsEl)myFrogsEl.textContent='🐸 My frogs: '+frogsLeft+'/'+totalFrogs+' | Score: '+(myData.score||0);
+  var diff4=room.frogDiff||'easy';
+  var statusEl=document.getElementById('frogStatus');
+  if(statusEl)statusEl.textContent=diff4==='hard'?'💀 HARD - Foxes steal points!':diff4==='medium'?'😤 MEDIUM - Watch for 🦊 foxes!':'😊 EASY - Tap enemy frogs!';
   // Eliminated?
   var elimEl=document.getElementById('frogEliminated');
   if(elimEl)elimEl.style.display=isAlive?'none':'block';
@@ -3495,8 +3546,10 @@ function renderFrogBoard(active,players){
     el.style.cssText='position:absolute;font-size:1.8rem;cursor:pointer;transition:transform 0.1s;user-select:none;-webkit-user-select:none;';
     el.style.left=(f.x/100*frogBoardW-20)+'px';
     el.style.top=(f.y/100*frogBoardH-20)+'px';
-    el.textContent='🐸';
+    var isFox=(f.type==='fox');
+    el.textContent=isFox?'🦊':'🐸';
     el.style.filter='drop-shadow(0 0 4px '+f.color+')';
+    if(isFox)el.style.animation='bombPulse 0.5s infinite';
     el.dataset.fid=fid;
     el.dataset.owner=f.owner;
     el.dataset.color=f.color;
@@ -3506,7 +3559,7 @@ function renderFrogBoard(active,players){
     if(age>life*0.7)el.style.opacity=String(1-(age-life*0.7)/(life*0.3));
     el.addEventListener('click',function(e){
       e.stopPropagation();
-      catchSpecificFrog(fid,f.owner);
+      catchSpecificFrog(fid,f.owner,f.type);
     });
     board.appendChild(el);
   });
@@ -3516,7 +3569,27 @@ window.catchFrog=function(e){
   // Tap anywhere on board - handled by individual frog click
 };
 
-window.catchSpecificFrog=async function(fid,ownerPid){
+window.catchSpecificFrog=async function(fid,ownerPid,frogType){
+  // FOX: releases all caught frogs back to owners!
+  if(frogType==='fox'){
+    playSound('wrong');
+    var foxSnap=await db.ref('rooms/'+roomCode).once('value');
+    if(!foxSnap.exists())return;
+    var foxRoom=foxSnap.val();
+    var foxUpdates={};
+    foxUpdates['frogActive/'+fid]=null;
+    // Get my score and reduce it - frogs "escape" back
+    var myScore=(foxRoom.frogPlayers&&foxRoom.frogPlayers[myId])?foxRoom.frogPlayers[myId].score||0:0;
+    var penaltyFrogs=Math.min(2,Math.floor(myScore/100));
+    if(penaltyFrogs>0){
+      foxUpdates['frogPlayers/'+myId+'/score']=Math.max(0,myScore-penaltyFrogs*100);
+      db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'🦊 '+myName+' touched the fox! Lost '+penaltyFrogs+' points!',ts:Date.now()});
+    } else {
+      db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'🦊 '+myName+' touched the fox! Watch out!',ts:Date.now()});
+    }
+    await db.ref('rooms/'+roomCode).update(foxUpdates);
+    return;
+  }
   // Can't catch your own frogs
   if(ownerPid===myId)return;
   var snap=await db.ref('rooms/'+roomCode).once('value');
