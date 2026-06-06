@@ -4270,15 +4270,19 @@ window.setRaceView = function(mode) {
   var canvas3d = document.getElementById('raceCanvas3d');
 
   if(mode === '3d') {
-    if(canvas2d) canvas2d.style.display = 'none';
+    // Keep canvas2d visible to maintain container height, just hide visually
+    if(canvas2d) { canvas2d.style.visibility = 'hidden'; }
     if(canvas3d) {
-      // Size the 3D canvas to match 2D
+      // Size exactly like 2D canvas
       canvas3d.width = raceCanvasW;
       canvas3d.height = raceCanvasH;
       canvas3d.style.width = raceCanvasW + 'px';
       canvas3d.style.height = raceCanvasH + 'px';
       canvas3d.style.display = 'block';
-      canvas3d.style.position = 'relative';
+      canvas3d.style.position = 'absolute';
+      canvas3d.style.top = '0';
+      canvas3d.style.left = '0';
+      canvas3d.style.zIndex = '10';
       
       if(!threeRenderer) {
         initThreeJS();
@@ -4305,17 +4309,11 @@ window.setRaceView = function(mode) {
       }
     }
   } else {
-    if(canvas2d) { canvas2d.style.display = 'block'; }
+    if(canvas2d) { canvas2d.style.visibility = 'visible'; }
     if(canvas3d) { canvas3d.style.display = 'none'; }
     var mm = document.getElementById('raceMinimapCanvas');
     if(mm) mm.style.display = 'none';
     if(threeAnimId) { cancelAnimationFrame(threeAnimId); threeAnimId = null; }
-    // Restart 2D loop if needed
-    if(!raceAnimFrame && window._lastRaceRoom && window._lastRaceRoom.raceState !== 'finished') {
-      raceAnimFrame = requestAnimationFrame(function(){
-        if(window._lastRaceRoom) drawRaceTrack(window._lastRaceRoom);
-      });
-    }
   }
 };
 
@@ -4670,8 +4668,13 @@ function raceLoop(initialRoom) {
   
   function tick() {
     var now = Date.now();
-    // Skip 2D drawing if in 3D mode
     if(raceView === '3d') {
+      // In 3D mode - just keep timer/countdown updated, skip 2D drawing
+      if(lastRoom && lastRoom.raceState === 'countdown') {
+        var remaining = Math.ceil((lastRoom.raceStart - now) / 1000);
+        var cdEl = document.getElementById('raceCountdownNum');
+        if(cdEl && remaining > 0) cdEl.textContent = remaining;
+      }
       raceAnimFrame = requestAnimationFrame(tick);
       return;
     }
