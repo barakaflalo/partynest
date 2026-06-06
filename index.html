@@ -4292,236 +4292,319 @@ function drawRaceTrack(room) {
   if(!canvas) return;
   var ctx = canvas.getContext('2d');
   var W = raceCanvasW, H = raceCanvasH;
-  
-  // Clear
   ctx.clearRect(0, 0, W, H);
-  
   var now2 = Date.now();
-  
-  // Background - grass
-  ctx.fillStyle = '#0F1A0F';
-  ctx.fillRect(0, 0, W, H);
-  
-  // Grass texture dots
-  ctx.fillStyle = '#142014';
-  for(var gi=0; gi<30; gi++) {
-    var gx = (gi*73)%W, gy = (gi*47)%H;
-    ctx.fillRect(gx, gy, 2, 2);
+
+  // ============================================================
+  // 2.5D PSEUDO-3D RENDERER (like old arcade racers)
+  // Camera follows MY car from behind
+  // ============================================================
+  var myData = room.racePlayers && room.racePlayers[myId];
+  var camProgress = myData ? myData.progress : 0;
+  var camAngle = raceGetAngle(camProgress % 1);
+  var camPt = raceGetTrackPoint(camProgress % 1);
+
+  // === SKY ===
+  var skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.45);
+  skyGrad.addColorStop(0, '#0A0A1A');
+  skyGrad.addColorStop(1, '#1A1A3A');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H * 0.45);
+
+  // Stars
+  ctx.fillStyle = '#FFF';
+  for(var si = 0; si < 40; si++) {
+    var sx = (si * 137 + camProgress * 200) % W;
+    var sy = (si * 73) % (H * 0.38);
+    var ss = si % 3 === 0 ? 1.5 : 0.8;
+    ctx.fillRect(sx, sy, ss, ss);
   }
 
-  var trackW = TRACK_WIDTH * W;
-  
-  // Track border (darker outline)
-  ctx.strokeStyle = '#333';
-  ctx.lineWidth = trackW + 8;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  var p0b = raceGetTrackPoint(0);
-  ctx.moveTo(p0b.x * W, p0b.y * H);
-  for(var ib = 1; ib <= TRACK_WAYPOINTS.length; ib++) {
-    var pb = raceGetTrackPoint(ib / TRACK_WAYPOINTS.length);
-    ctx.lineTo(pb.x * W, pb.y * H);
-  }
-  ctx.closePath();
-  ctx.stroke();
+  // === HORIZON GLOW ===
+  var horizonY = H * 0.42;
+  var horizGrad = ctx.createLinearGradient(0, horizonY - 10, 0, horizonY + 20);
+  horizGrad.addColorStop(0, 'rgba(201,168,76,0)');
+  horizGrad.addColorStop(0.5, 'rgba(201,168,76,0.3)');
+  horizGrad.addColorStop(1, 'rgba(201,168,76,0)');
+  ctx.fillStyle = horizGrad;
+  ctx.fillRect(0, horizonY - 10, W, 30);
 
-  // Track surface - asphalt
-  ctx.strokeStyle = '#4A4A4A';
-  ctx.lineWidth = trackW;
-  ctx.beginPath();
-  var pts = TRACK_WAYPOINTS;
-  var p0 = raceGetTrackPoint(0);
-  ctx.moveTo(p0.x * W, p0.y * H);
-  for(var i = 1; i <= pts.length; i++) {
-    var p = raceGetTrackPoint(i / pts.length);
-    ctx.lineTo(p.x * W, p.y * H);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  
-  // Track edge lines (kerbs - red/white stripes)
-  for(var ki=0; ki<pts.length*4; ki++) {
-    var kt = ki / (pts.length*4);
-    var kp = raceGetTrackPoint(kt);
-    var ka = raceGetAngle(kt) + Math.PI/2;
-    var kr = trackW/2 - 2;
-    var kcolor = (Math.floor(ki/2)%2===0) ? '#CC2222' : '#EEEEEE';
-    ctx.fillStyle = kcolor;
-    ctx.fillRect(
-      kp.x*W + Math.cos(ka)*kr - 3,
-      kp.y*H + Math.sin(ka)*kr - 3, 6, 6
-    );
-  }
-  
-  // Track center dashes
-  ctx.strokeStyle = 'rgba(255,215,0,0.25)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([8, 14]);
-  ctx.beginPath();
-  var pc0 = raceGetTrackPoint(0);
-  ctx.moveTo(pc0.x * W, pc0.y * H);
-  for(var j = 1; j <= pts.length * 3; j++) {
-    var pc = raceGetTrackPoint(j / (pts.length * 3));
-    ctx.lineTo(pc.x * W, pc.y * H);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // === GROUND ===
+  var groundGrad = ctx.createLinearGradient(0, horizonY, 0, H);
+  groundGrad.addColorStop(0, '#1A2A1A');
+  groundGrad.addColorStop(1, '#0A140A');
+  ctx.fillStyle = groundGrad;
+  ctx.fillRect(0, horizonY, W, H - horizonY);
 
-  // Draw items on track
-  ITEMS.forEach(function(item, idx) {
-    // Skip if recently collected
-    if(collectedItems[idx] && Date.now() < collectedItems[idx]) return;
-    var ip = raceGetTrackPoint(item.pos);
-    var pulsing = 0.75 + 0.25 * Math.sin(now2/250 + idx);
-    ctx.globalAlpha = pulsing;
-    ctx.font = '18px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(item.icon, ip.x*W, ip.y*H+6);
-    // Glow circle
-    ctx.strokeStyle = item.color;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = pulsing * 0.5;
+  // === ROAD PROJECTION ===
+  // Project road segments ahead of camera using perspective
+  var numSegs = 80;
+  var camFOV = 0.015;
+  var roadW0 = W * 0.08;  // road width at horizon
+  var roadW1 = W * 0.85;  // road width at bottom
+
+  // Draw road segments back to front
+  for(var seg = numSegs; seg >= 0; seg--) {
+    var t = seg / numSegs;
+    var segProgress = (camProgress + seg * camFOV) % 1;
+    var segY = horizonY + (1 - t) * (H - horizonY);
+    var nextY = horizonY + (1 - (seg-1)/numSegs) * (H - horizonY);
+    var segW = roadW0 + (roadW1 - roadW0) * (1-t);
+    var segX = W/2;
+
+    // Road curve effect - shift based on upcoming turns
+    var curvePt = raceGetTrackPoint(segProgress);
+    var nextPt = raceGetTrackPoint((segProgress + 0.005) % 1);
+    var dxTrack = nextPt.x - curvePt.x;
+    var curveShift = dxTrack * (1-t) * W * 2.5;
+    segX += curveShift;
+
+    // Alternating asphalt color (speed strips)
+    var stripIdx = Math.floor((camProgress * 200 + seg) * 2) % 2;
+    var roadColor = stripIdx === 0 ? '#3A3A3A' : '#424242';
+    ctx.fillStyle = roadColor;
     ctx.beginPath();
-    ctx.arc(ip.x*W, ip.y*H, 14, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  });
-  
-  // Start/Finish line - checkered
-  var sfPt = raceGetTrackPoint(0);
-  var sfAngle = raceGetAngle(0) + Math.PI/2;
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(
-    sfPt.x * W - Math.cos(sfAngle) * trackW/2,
-    sfPt.y * H - Math.sin(sfAngle) * trackW/2
-  );
-  ctx.lineTo(
-    sfPt.x * W + Math.cos(sfAngle) * trackW/2,
-    sfPt.y * H + Math.sin(sfAngle) * trackW/2
-  );
-  ctx.stroke();
-  // Finish flag emoji
-  ctx.font = '16px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('🏁', sfPt.x*W, sfPt.y*H - trackW/2 - 5);
-
-  // Speed particles (boost effect)
-  raceParticles = raceParticles.filter(function(p) { return now2 < p.end; });
-  raceParticles.forEach(function(p) {
-    var age = (now2 - p.start) / (p.end - p.start);
-    ctx.globalAlpha = 1 - age;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * (1-age*0.5), 0, Math.PI*2);
+    ctx.moveTo(segX - segW/2, segY);
+    ctx.lineTo(segX + segW/2, segY);
+    ctx.lineTo((W/2 + (nextY > segY ? curveShift*0.8 : curveShift*1.2)) + roadW0/2 + (roadW0-roadW0)/2, nextY);
+    ctx.lineTo((W/2 + (nextY > segY ? curveShift*0.8 : curveShift*1.2)) - roadW0/2, nextY);
+    ctx.closePath();
     ctx.fill();
-    ctx.globalAlpha = 1;
-    p.x += p.vx;
-    p.y += p.vy;
-  });
-  
-  // Draw cars
-  var racePlayers = room.racePlayers || {};
-  // Sort: draw my car last (on top)
-  var carEntries = Object.entries(racePlayers).sort(function(a,b){
-    return a[0]===myId ? 1 : b[0]===myId ? -1 : 0;
-  });
-  
-  carEntries.forEach(function(entry) {
-    var pid = entry[0], p = entry[1];
-    var pt = raceGetTrackPoint(p.progress % 1);
-    var angle = raceGetAngle(p.progress % 1);
-    var x = pt.x * W, y = pt.y * H;
-    var isMe = pid === myId;
-    var isBoosting = isMe && now2 < myBoostUntil;
-    var carScale = isBoosting ? 1.15 : 1.0;
-    
-    // Speed trail (last 3 positions)
-    if(isMe && p.progress > 0) {
-      for(var ti=1; ti<=3; ti++) {
-        var trailT = Math.max(0, p.progress - ti*0.003);
-        var tp = raceGetTrackPoint(trailT % 1);
-        ctx.globalAlpha = 0.15 * (4-ti)/3;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.ellipse(tp.x*W, tp.y*H, 8*(4-ti)/3, 5*(4-ti)/3, angle, 0, Math.PI*2);
-        ctx.fill();
+
+    // Road edges (kerbs)
+    if(seg % 4 < 2) {
+      ctx.fillStyle = '#CC2222';
+    } else {
+      ctx.fillStyle = '#EEEEEE';
+    }
+    var kerbW = segW * 0.06;
+    ctx.fillRect(segX - segW/2 - kerbW, segY, kerbW, Math.max(1, nextY-segY+1));
+    ctx.fillRect(segX + segW/2, segY, kerbW, Math.max(1, nextY-segY+1));
+
+    // Center dashes
+    if(seg % 8 < 4) {
+      ctx.fillStyle = 'rgba(255,215,0,0.6)';
+      ctx.fillRect(segX - 3, segY, 6, Math.max(1, nextY-segY));
+    }
+
+    // Boost pad
+    ITEMS.forEach(function(item, idx2) {
+      if(collectedItems[idx2] && Date.now() < collectedItems[idx2]) return;
+      var dist = Math.abs(segProgress - item.pos);
+      if(dist > 0.5) dist = 1 - dist;
+      if(dist < 0.01 && seg > 5) {
+        var pulse = 0.7 + 0.3 * Math.sin(now2/200);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = item.type === 'boost' ? '#FFD700' : '#664400';
+        ctx.fillRect(segX - segW*0.3, segY, segW*0.6, Math.max(2, nextY-segY+1));
+        ctx.font = Math.max(8, (1-t)*20) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(item.icon, segX, segY + (nextY-segY)/2 + 4);
         ctx.globalAlpha = 1;
       }
-    }
-    
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.scale(carScale, carScale);
-    
-    // Boost flame
-    if(isBoosting) {
-      ctx.fillStyle = '#FF6600';
-      ctx.globalAlpha = 0.8;
+    });
+
+    // Roadside scenery (poles/trees)
+    if(seg % 12 === 0 && seg > 3) {
+      var poleH = (1-t) * 60;
+      var poleX = segX + segW/2 + kerbW + 8;
+      // Pole
+      ctx.fillStyle = '#888';
+      ctx.fillRect(poleX, segY - poleH, 3, poleH);
+      // Light
+      ctx.fillStyle = seg % 24 === 0 ? '#FFFFAA' : '#FF4444';
       ctx.beginPath();
-      ctx.moveTo(-12, -4);
-      ctx.lineTo(-20, 0);
-      ctx.lineTo(-12, 4);
+      ctx.arc(poleX + 1, segY - poleH, Math.max(2, (1-t)*6), 0, Math.PI*2);
       ctx.fill();
-      ctx.globalAlpha = 1;
+      // Mirror left side
+      var poleXL = segX - segW/2 - kerbW - 8;
+      ctx.fillStyle = '#888';
+      ctx.fillRect(poleXL-3, segY - poleH, 3, poleH);
+      ctx.fillStyle = seg % 24 === 0 ? '#FFFFAA' : '#FF4444';
+      ctx.beginPath();
+      ctx.arc(poleXL-1, segY - poleH, Math.max(2, (1-t)*6), 0, Math.PI*2);
+      ctx.fill();
     }
-    
+  }
+
+  // === ROAD BOTTOM EDGE ===
+  ctx.fillStyle = '#2A2A2A';
+  ctx.fillRect(0, H-4, W, 4);
+
+  // === OTHER CARS (projected) ===
+  var sortedPlayers = Object.entries(room.racePlayers||{})
+    .filter(function(e){ return e[0] !== myId && !e[1].finished; })
+    .sort(function(a,b){ return b[1].progress - a[1].progress; });
+
+  sortedPlayers.forEach(function(entry) {
+    var pid = entry[0], p = entry[1];
+    var relProg = (p.progress - camProgress);
+    // Only show cars ahead within visible range
+    if(relProg <= 0 || relProg > camFOV * numSegs * 0.8) return;
+    var t2 = 1 - relProg / (camFOV * numSegs);
+    var carY = horizonY + (1-t2) * (H - horizonY);
+    var carW = Math.max(8, (1-t2) * 80);
+    var carH = Math.max(5, (1-t2) * 50);
+
+    // Get curve offset
+    var carPt = raceGetTrackPoint(p.progress % 1);
+    var carCurvePt = raceGetTrackPoint(camProgress % 1);
+    var carOffsetX = (carPt.x - carCurvePt.x) * W * (1-t2) * 2;
+
+    var carX = W/2 + carOffsetX;
+
     // Car shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(-13, -6, 28, 13);
-    
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(carX - carW/2 + 3, carY - carH*0.1 + 3, carW, carH*0.15);
+
     // Car body
     ctx.fillStyle = p.color;
     ctx.beginPath();
-    ctx.roundRect(-12, -6, 24, 12, 4);
+    ctx.roundRect(carX - carW/2, carY - carH, carW, carH, carW*0.1);
     ctx.fill();
-    
-    // Car hood detail
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(4, -5, 7, 10);
-    
+
     // Windshield
-    ctx.fillStyle = 'rgba(180,220,255,0.7)';
-    ctx.fillRect(-1, -5, 7, 10);
-    
-    // Wheels
-    ctx.fillStyle = '#1A1A1A';
-    [[-9,-7],[-9,7],[8,-7],[8,7]].forEach(function(w) {
-      ctx.fillRect(w[0]-3, w[1]-2, 6, 4);
-      // Wheel shine
-      ctx.fillStyle = '#444';
-      ctx.fillRect(w[0]-1, w[1]-1, 2, 2);
-      ctx.fillStyle = '#1A1A1A';
-    });
-    
-    // My car glow
-    if(isMe) {
-      ctx.strokeStyle = isBoosting ? '#FFD700' : '#FFFFFF';
-      ctx.lineWidth = isBoosting ? 3 : 2;
-      ctx.shadowColor = isBoosting ? '#FF6600' : '#FFF';
-      ctx.shadowBlur = isBoosting ? 10 : 4;
-      ctx.beginPath();
-      ctx.roundRect(-14, -8, 28, 16, 5);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(150,210,255,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(carX - carW*0.25, carY - carH*0.9, carW*0.5, carH*0.4, 2);
+    ctx.fill();
+
+    // Rear lights
+    ctx.fillStyle = '#FF3333';
+    ctx.fillRect(carX - carW/2, carY - carH*0.25, carW*0.15, carH*0.2);
+    ctx.fillRect(carX + carW/2 - carW*0.15, carY - carH*0.25, carW*0.15, carH*0.2);
+
+    // Name
+    if(carH > 12) {
+      ctx.fillStyle = p.color;
+      ctx.font = 'bold ' + Math.max(8, carH*0.25) + 'px Heebo,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((p.name||'?').slice(0,6), carX, carY - carH - 4);
     }
-    
-    ctx.restore();
-    
-    // Name + lap badge
-    var lapTxt = p.lap ? ' L'+(p.lap+1) : '';
-    ctx.fillStyle = isMe ? '#FFF' : p.color;
-    ctx.font = (isMe ? 'bold 11px' : '10px') + ' Heebo, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 3;
-    ctx.fillText((p.name||'?').slice(0,8)+lapTxt, x, y - 16);
-    ctx.shadowBlur = 0;
   });
+
+  // === MY CAR (bottom center, always) ===
+  var myCarW = 80, myCarH = 50;
+  var myCarX = W/2, myCarY = H - 30;
+  var isBoosting3 = Date.now() < myBoostUntil;
+  var isSlowed3 = Date.now() < mySlowUntil;
+
+  // Exhaust
+  if(isBoosting3) {
+    for(var fi=0; fi<3; fi++) {
+      ctx.globalAlpha = 0.6 - fi*0.15;
+      ctx.fillStyle = fi===0?'#FF6600':'#FFD700';
+      ctx.beginPath();
+      ctx.ellipse(myCarX + (fi%2===0?-15:15), myCarY + 8 + fi*4,
+                  5-fi, 8+fi*2, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Car shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(myCarX - myCarW/2 + 6, myCarY - myCarH*0.1 + 6, myCarW, myCarH*0.15);
+
+  // Car body
+  ctx.fillStyle = myData ? myData.color : '#E05050';
+  ctx.shadowColor = isBoosting3 ? '#FF6600' : isSlowed3 ? '#664400' : 'rgba(255,255,255,0.3)';
+  ctx.shadowBlur = isBoosting3 ? 20 : 8;
+  ctx.beginPath();
+  ctx.roundRect(myCarX - myCarW/2, myCarY - myCarH, myCarW, myCarH, 8);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Windshield
+  ctx.fillStyle = 'rgba(160,220,255,0.75)';
+  ctx.beginPath();
+  ctx.roundRect(myCarX - myCarW*0.22, myCarY - myCarH*0.88, myCarW*0.44, myCarH*0.38, 4);
+  ctx.fill();
+
+  // Hood
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(myCarX + myCarW*0.1, myCarY - myCarH, myCarW*0.38, myCarH);
+
+  // Wheels
+  ctx.fillStyle = '#111';
+  [[-myCarW*0.42, 0],[myCarW*0.42, 0],[-myCarW*0.42,-myCarH*0.6],[myCarW*0.42,-myCarH*0.6]].forEach(function(w){
+    ctx.beginPath();
+    ctx.roundRect(myCarX + w[0] - 8, myCarY + w[1] - 7, 8, 14, 3);
+    ctx.fill();
+    ctx.fillStyle = '#444';
+    ctx.fillRect(myCarX + w[0] - 5, myCarY + w[1] - 4, 2, 8);
+    ctx.fillStyle = '#111';
+  });
+
+  // Headlights
+  ctx.fillStyle = '#FFFFAA';
+  ctx.shadowColor = '#FFFF00';
+  ctx.shadowBlur = 10;
+  ctx.fillRect(myCarX - myCarW/2, myCarY - myCarH*0.2, 12, 8);
+  ctx.fillRect(myCarX + myCarW/2 - 12, myCarY - myCarH*0.2, 12, 8);
+  ctx.shadowBlur = 0;
+
+  // My name
+  ctx.fillStyle = '#FFF';
+  ctx.font = 'bold 11px Heebo,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  ctx.fillText((myData&&myData.name||'?').slice(0,8), myCarX, myCarY - myCarH - 6);
+  ctx.shadowBlur = 0;
+
+  // === SPEED PARTICLES ===
+  raceParticles = raceParticles.filter(function(p){return now2<p.end;});
+  raceParticles.forEach(function(p){
+    var age=(now2-p.start)/(p.end-p.start);
+    ctx.globalAlpha=1-age;
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r*(1-age*0.5),0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=1;
+    p.x+=p.vx; p.y+=p.vy;
+  });
+
+  // === MINI POSITIONS (top right) ===
+  var sorted2 = Object.entries(room.racePlayers||{}).sort(function(a,b){
+    if(b[1].lap!==a[1].lap) return b[1].lap-a[1].lap;
+    return b[1].progress-a[1].progress;
+  });
+  ctx.textAlign='left';
+  sorted2.forEach(function(e,i){
+    var p=e[1], isMe2=e[0]===myId;
+    ctx.fillStyle = isMe2?'#FFF':p.color;
+    ctx.font=(isMe2?'bold ':'')+Math.max(9,11-sorted2.length)+'px Heebo,sans-serif';
+    ctx.shadowColor='#000'; ctx.shadowBlur=3;
+    var medals=['🥇','🥈','🥉'];
+    ctx.fillText((medals[i]||i+1+'.')+' '+(p.name||'?').slice(0,6), 8, 50+i*16);
+    ctx.shadowBlur=0;
+  });
+
+  // === LAP COUNTER ===
+  var myLap = myData ? Math.min((myData.lap||0)+1, TOTAL_LAPS) : 1;
+  ctx.fillStyle = '#C9A84C';
+  ctx.font = 'bold 14px Cinzel,serif';
+  ctx.textAlign = 'right';
+  ctx.shadowColor='#000'; ctx.shadowBlur=4;
+  ctx.fillText('LAP '+myLap+'/'+TOTAL_LAPS, W-8, 22);
+  ctx.shadowBlur=0;
+
+  // === SPEED INDICATOR ===
+  var speedPct = isBoosting3 ? 1.0 : isSlowed3 ? 0.2 : 0.6;
+  var barW = 80, barH = 8;
+  var barX = W/2 - barW/2, barY = H - 12;
+  ctx.fillStyle = '#333';
+  ctx.fillRect(barX, barY, barW, barH);
+  ctx.fillStyle = isBoosting3 ? '#FFD700' : isSlowed3 ? '#FF4444' : '#44FF44';
+  ctx.fillRect(barX, barY, barW*speedPct, barH);
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barW, barH);
+  ctx.fillStyle = '#FFF';
+  ctx.font = '8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(isBoosting3?'BOOST':'SPEED', W/2, barY-2);
 }
 
 window.raceGas = async function() {
