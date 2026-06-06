@@ -12,7 +12,211 @@
 <title>PartyNest — Multiplayer Games</title>
 <!-- v3.0-1780692812 -->
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
+// ============================================================
+// ===== FROG CATCHER =========================================
+// ============================================================
+var frogTimers={};
+var frogBoardW=400,frogBoardH=280;
+var PLAYER_COLORS=['#E05050','#4A8FD4','#4CAF7A','#9B59B6','#E0A040','#C9A84C'];
+var frogSyncInterval=null;
+
+function initFrog(){
+  var players=Object.keys(scores);
+  var frogData={};
+  players.forEach(function(id,i){
+    frogData[id]={
+      name:(scores[id]||{name:'?'}).name,
+      color:PLAYER_COLORS[i%PLAYER_COLORS.length],
+      frogs:3, // each player starts with 3 frogs
+      alive:true,
+      score:0
+    };
+  });
+  db.ref('rooms/'+roomCode).update({
+    status:'frog',frogPlayers:frogData,
+    frogActive:{}, // active frogs on board: {id: {x,y,owner,id}}
+    frogRound:1,frogStart:Date.now(),chat:null
+  });
+  systemMsg('🐸 Frog Catcher started!');
+  // Host starts spawning frogs
+  if(isHost) setTimeout(frogSpawnLoop,500);
+}
+
+var _frogSpawning=false;
+function frogSpawnLoop(){
+  if(_frogSpawning)return;
+  _frogSpawning=true;
+  // Spawn frogs for each alive player every 2-4 seconds
+  function spawnRound(){
+    db.ref('rooms/'+roomCode).once('value').then(function(snap){
+      if(!snap.exists()||snap.val().status!=='frog'){_frogSpawning=false;return;}
+      var room=snap.val();
+      var alivePlayers=Object.entries(room.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
+      if(alivePlayers.length<=1){_frogSpawning=false;return;}
+      var updates={};
+      // Spawn 1-2 frogs per alive player
+      alivePlayers.forEach(function(entry){
+        var pid=entry[0],pd=entry[1];
+        var numSpawn=Math.floor(Math.random()*2)+1;
+        for(var i=0;i<numSpawn;i++){
+          var fid='f_'+Date.now()+'_'+pid+'_'+Math.random().toString(36).substr(2,4);
+          updates['frogActive/'+fid]={
+            x:Math.floor(Math.random()*85)+5, // % of board
+            y:Math.floor(Math.random()*80)+5,
+            owner:pid,
+            color:pd.color,
+            spawnTime:Date.now(),
+            lifetime:2000+Math.random()*2000 // 2-4 seconds visible
+          };
+        }
+      });
+      db.ref('rooms/'+roomCode).update(updates);
+      // Clean up expired frogs
+      var active=room.frogActive||{};
+      var now=Date.now();
+      var removes={};
+      Object.entries(active).forEach(function(e){
+        if(now-e[1].spawnTime>e[1].lifetime){removes['frogActive/'+e[0]]=null;}
+      });
+      if(Object.keys(removes).length>0) db.ref('rooms/'+roomCode).update(removes);
+      // Continue loop
+      setTimeout(spawnRound,2000+Math.random()*1500);
+    });
+  }
+  spawnRound();
+}
+
+function loadFrog(room){
+  if(!room.frogPlayers)return;
+  showScreen('frog');
+  document.getElementById('frogCode').textContent=roomCode;
+  var myData=room.frogPlayers[myId]||{};
+  var isAlive=myData.alive!==false;
+  // Board sizing
+  var board=document.getElementById('frogBoard');
+  frogBoardW=Math.min(400,window.innerWidth-60);
+  frogBoardH=Math.round(frogBoardW*0.7);
+  board.style.width=frogBoardW+'px';
+  board.style.height=frogBoardH+'px';
+  // My frogs count
+  var myFrogsEl=document.getElementById('frogMyFrogs');
+  if(myFrogsEl)myFrogsEl.textContent='🐸 My frogs: '+(myData.frogs||0);
+  // Eliminated?
+  var elimEl=document.getElementById('frogEliminated');
+  if(elimEl)elimEl.style.display=isAlive?'none':'block';
+  // Render active frogs
+  renderFrogBoard(room.frogActive||{},room.frogPlayers||{});
+  // Sidebar scores
+  var scoreData={};
+  Object.entries(room.frogPlayers||{}).forEach(function(e){
+    scoreData[e[0]]={name:e[1].name,score:e[1].score||0};
+  });
+  renderFrogSidebar(room.frogPlayers||{});
+  renderHostControls('frogHostControls',
+    isHost?'<button class="host-ctrl-btn danger" onclick="confirmEndGame()">End Game</button>':'');
+}
+
+function renderFrogBoard(active,players){
+  var board=document.getElementById('frogBoard');
+  if(!board)return;
+  // Clear old frogs
+  board.innerHTML='';
+  // Draw each frog
+  Object.entries(active).forEach(function(entry){
+    var fid=entry[0],f=entry[1];
+    var el=document.createElement('div');
+    el.style.cssText='position:absolute;font-size:1.8rem;cursor:pointer;transition:transform 0.1s;user-select:none;-webkit-user-select:none;';
+    el.style.left=(f.x/100*frogBoardW-20)+'px';
+    el.style.top=(f.y/100*frogBoardH-20)+'px';
+    el.textContent='🐸';
+    el.style.filter='drop-shadow(0 0 4px '+f.color+')';
+    el.dataset.fid=fid;
+    el.dataset.owner=f.owner;
+    el.dataset.color=f.color;
+    // Fade out near end of lifetime
+    var age=Date.now()-f.spawnTime;
+    var life=f.lifetime||3000;
+    if(age>life*0.7)el.style.opacity=String(1-(age-life*0.7)/(life*0.3));
+    el.addEventListener('click',function(e){
+      e.stopPropagation();
+      catchSpecificFrog(fid,f.owner);
+    });
+    board.appendChild(el);
+  });
+}
+
+window.catchFrog=function(e){
+  // Tap anywhere on board - handled by individual frog click
+};
+
+window.catchSpecificFrog=async function(fid,ownerPid){
+  // Can't catch your own frogs
+  if(ownerPid===myId)return;
+  var snap=await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists())return;
+  var room=snap.val();
+  if(room.status!=='frog')return;
+  if(!(room.frogActive&&room.frogActive[fid]))return; // already caught
+  // Remove frog from board
+  var updates={'frogActive/'+fid:null};
+  // Reduce owner's frog count
+  var ownerData=room.frogPlayers[ownerPid]||{frogs:3};
+  var newFrogCount=Math.max(0,(ownerData.frogs||3)-1);
+  updates['frogPlayers/'+ownerPid+'/frogs']=newFrogCount;
+  updates['frogPlayers/'+myId+'/score']=(room.frogPlayers[myId]?.score||0)+100;
+  if(newFrogCount<=0){
+    // Player eliminated!
+    updates['frogPlayers/'+ownerPid+'/alive']=false;
+    var ownerName=ownerData.name||'?';
+    db.ref('rooms/'+roomCode+'/chat').push({system:true,text:'💥 '+ownerName+' is eliminated!',ts:Date.now()});
+    playSound('correct');
+    // Check if only 1 player left
+    var aliveCount=Object.values(room.frogPlayers||{}).filter(function(p){return p.alive!==false;}).length;
+    if(aliveCount<=2){
+      // Only winner left
+      setTimeout(async function(){
+        var finalSnap=await db.ref('rooms/'+roomCode).once('value');
+        if(!finalSnap.exists())return;
+        var fr=finalSnap.val();
+        var stillAlive=Object.entries(fr.frogPlayers||{}).filter(function(e){return e[1].alive!==false;});
+        if(stillAlive.length<=1){
+          var fs={};Object.entries(fr.frogPlayers||{}).forEach(function(e){fs[e[0]]=e[1].score||0;});
+          if(stillAlive.length===1)fs[stillAlive[0][0]]=(fs[stillAlive[0][0]]||0)+500;
+          db.ref('rooms/'+roomCode).update({status:'results',finalScores:fs});
+        }
+      },1500);
+    }
+  } else {
+    playSound('wrong');
+  }
+  await db.ref('rooms/'+roomCode).update(updates);
+};
+
+function renderFrogSidebar(players){
+  var el=document.getElementById('frogSidebarScores');
+  if(!el)return;
+  el.innerHTML=Object.entries(players).map(function(entry){
+    var id=entry[0],p=entry[1];
+    var frogs=p.frogs||0;
+    var alive=p.alive!==false;
+    return '<div class="sidebar-player '+(id===myId?'me':'')+'" style="opacity:'+(alive?1:0.4)+'">'+
+      '<span class="sidebar-player-name">'+(alive?'🐸'.repeat(Math.min(frogs,3)):'💀')+' '+p.name+(id===myId?' 👤':'')+'</span>'+
+      '<span class="sidebar-player-pts">'+(p.score||0)+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+// Start frog spawn loop for host when game starts
+var _frogListenerAdded=false;
+var _origLoadFrog=loadFrog;
+loadFrog=function(room){
+  _origLoadFrog(room);
+  if(isHost&&!_frogSpawning){
+    frogSpawnLoop();
+  }
+};
+</script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -458,6 +662,7 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="game-opt" onclick="selectGame('whoami')" id="go-whoami"><span class="game-opt-icon">🃏</span><span class="game-opt-name" id="gn-whoami">Who Am I</span></div>
         <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb"><span class="game-opt-icon">💣</span><span class="game-opt-name" id="gn-bomb">Hot Potato</span></div>
         <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr"><span class="game-opt-icon">🔮</span><span class="game-opt-name" id="gn-wyr">Vote / WYR</span></div>
+        <div class="game-opt" onclick="selectGame('frog')" id="go-frog"><span class="game-opt-icon">🐸</span><span class="game-opt-name" id="gn-frog">Frog Catcher</span></div>
       </div>
       <!-- WHO AM I SETUP - shown when whoami selected -->
       <div id="whoamiLobbySetup" style="display:none;background:var(--dark2);border:1px solid var(--gold-dim);border-radius:12px;padding:12px;margin-top:8px;">
@@ -825,7 +1030,8 @@ const T = {
     bombDifficulty:'Difficulty',diffEasy:'Easy',diffMedium:'Medium',diffHard:'Hard',
     vote:'Vote',
     voteAsk:'Ask a question:',
-    wyrHostTitle:'CREATE A QUESTION',wyrCustom:'Custom',wyrPickQ:'Pick a question:',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
+    wyrHostTitle:'CREATE A QUESTION',wyrCustom:'Custom',wyrPickQ:'Pick a question:',whoami:'Who Am I',bomb:'Hot Potato',
+    frog:'Frog Catcher',wyr:'Would You Rather',
     simon:'Simon Says',anagram:'Anagram',complete:'Finish the Sentence',number:'Guess My Number',fastest:'Fastest Finger',
     broadcastPlaceholder:'Type message...',
     settingsTitle:'⚙️ Room Settings',
@@ -881,7 +1087,8 @@ const T = {
     bombDifficulty:'רמת קושי',diffEasy:'קל',diffMedium:'בינוני',diffHard:'קשה',
     vote:'הצבעה',
     voteAsk:'שאל שאלה:',
-    wyrHostTitle:'צור שאלה',wyrCustom:'מותאם אישית',wyrPickQ:'בחר שאלה:',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
+    wyrHostTitle:'צור שאלה',wyrCustom:'מותאם אישית',wyrPickQ:'בחר שאלה:',whoami:'מי אני',bomb:'תפוח אדמה לוהט',
+    frog:'תפוס צפרדע',wyr:'מה עדיף',
     simon:'סיימון אומר',anagram:'אנגרמות',complete:'השלם המשפט',number:'נחש את המספר',fastest:'מי הכי מהיר',
     broadcastPlaceholder:'כתוב הודעה...',
     settingsTitle:'⚙️ הגדרות חדר',
@@ -937,7 +1144,8 @@ const T = {
     bombDifficulty:'Сложность',diffEasy:'Легко',diffMedium:'Средне',diffHard:'Сложно',
     vote:'Голосование',
     voteAsk:'Задай вопрос:',
-    wyrHostTitle:'СОЗДАТЬ ВОПРОС',wyrCustom:'Свой',wyrPickQ:'Выбери вопрос:',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
+    wyrHostTitle:'СОЗДАТЬ ВОПРОС',wyrCustom:'Свой',wyrPickQ:'Выбери вопрос:',whoami:'Кто я',bomb:'Горячая картошка',
+    frog:'Поймай лягушку',wyr:'Что лучше',
     simon:'Саймон говорит',anagram:'Анаграмма',complete:'Закончи фразу',number:'Угадай число',fastest:'Самый быстрый',
     broadcastPlaceholder:'Введи сообщение...',
     settingsTitle:'⚙️ Настройки',
@@ -993,7 +1201,8 @@ const T = {
     bombDifficulty:'Dificultad',diffEasy:'Facil',diffMedium:'Medio',diffHard:'Dificil',
     vote:'Votacion',
     voteAsk:'Haz una pregunta:',
-    wyrHostTitle:'CREAR PREGUNTA',wyrCustom:'Propio',wyrPickQ:'Elige pregunta:',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
+    wyrHostTitle:'CREAR PREGUNTA',wyrCustom:'Propio',wyrPickQ:'Elige pregunta:',whoami:'Quien soy',bomb:'Papa caliente',
+    frog:'Atrapa la rana',wyr:'Que prefieres',
     simon:'Simon dice',anagram:'Anagrama',complete:'Termina la frase',number:'Adivina el numero',fastest:'Mas rapido',
     broadcastPlaceholder:'Escribe mensaje...',
     settingsTitle:'⚙️ Configuracion',
@@ -1049,7 +1258,8 @@ const T = {
     bombDifficulty:'الصعوبة',diffEasy:'سهل',diffMedium:'متوسط',diffHard:'صعب',
     vote:'تصويت',
     voteAsk:'اسأل سؤالاً:',
-    wyrHostTitle:'انشئ سؤالاً',wyrCustom:'مخصص',wyrPickQ:'اختر سؤالاً:',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
+    wyrHostTitle:'انشئ سؤالاً',wyrCustom:'مخصص',wyrPickQ:'اختر سؤالاً:',whoami:'من انا',bomb:'البطاطا الساخنة',
+    frog:'امسك الضفدع',wyr:'ماذا تفضل',
     simon:'سايمون يقول',anagram:'انغرام',complete:'اكمل الجملة',number:'خمن الرقم',fastest:'الاسرع',
     broadcastPlaceholder:'اكتب رسالة...',
     settingsTitle:'⚙️ اعدادات',
@@ -1138,7 +1348,35 @@ function updateAboutContent(){
     +'<div class="about-row"><span class="about-label">AppNest &copy; 2026</span></div>'
     +'<div class="about-row"><span class="about-label">'+t('aboutContact')+'</span><a class="about-link" href="https://barakaflalo.github.io/appnest" target="_blank">AppNest</a></div>';
 }
-window.openGuide=function(){updateGuideContent();document.getElementById('guideModal').style.display='flex';};
+window.openGuide=function(game){
+  if(game){showGameGuide(game);}
+  else{updateGuideContent();document.getElementById('guideModal').style.display='flex';}
+};
+
+function showGameGuide(game){
+  var guides={
+    trivia:{en:{title:'🧠 Trivia',steps:['Question appears for everyone','Press the correct answer ASAP','Faster = more points!','After time is up, see who got it right','Highest score wins!']},
+            he:{title:'🧠 טריוויה',steps:['שאלה מופיעה לכולם','לחץ על התשובה הנכונה','מהר יותר = יותר נקודות!','אחרי הזמן — ראה מי ענה נכון','הניקוד הגבוה ביותר מנצח!']}},
+    forbidden:{en:{title:'🚫 Forbidden Word',steps:['One player is the DESCRIBER','They see the word + 4 forbidden hints','They describe it WITHOUT saying those words','Others guess in the chat','Correct guess = points for both!']},
+               he:{title:'🚫 מילה אסורה',steps:['שחקן אחד הוא המתאר','הוא רואה את המילה + 4 מילים אסורות','הוא מתאר בלי להגיד את המילים האסורות','שאר מנחשים בצ׳אט','ניחוש נכון = נקודות לשניהם!']}},
+    whoami:{en:{title:'🃏 Who Am I',steps:['Everyone gets a secret identity (they cannot see it)','Take turns asking YES/NO questions','"Are you real?" "Are you fictional?" "Are you human?"','After '+5+' wrong guesses, identity is revealed','Guess correctly = 500 points!']},
+            he:{title:'🃏 מי אני',steps:['כולם מקבלים זהות סודית (הם לא רואים אותה)','בתורות שואלים שאלות כן/לא','"האם אני אמיתי?" "האם אני אנושי?"','אחרי '+5+' ניסיונות — הזהות מתגלה','ניחוש נכון = 500 נקודות!']}},
+    bomb:{en:{title:'💣 Hot Potato',steps:['One player holds the bomb','PASS it before time runs out!','The player holding it when it explodes is eliminated','Last player standing wins!','Hard mode: the PASS button moves around!']},
+          he:{title:'💣 תפוח אדמה לוהט',steps:['שחקן אחד מחזיק את הפצצה','העבר אותה לפני שהזמן נגמר!','מי שמחזיק כשהיא מתפוצצת מסולק','השחקן האחרון מנצח!','מצב קשה: כפתור ה-העבר זז!']}},
+    wyr:{en:{title:'🔮 Vote / Would You Rather',steps:['Host types a question with 2 options','Everyone votes A or B','See live results with percentage','Host can prepare a question list in advance','Results summary shown at the end!']},
+         he:{title:'🔮 הצבעה / מה עדיף',steps:['המנהל כותב שאלה עם 2 אפשרויות','כולם מצביעים A או B','רואים תוצאות חיות עם אחוזים','המנהל יכול להכין רשימת שאלות מראש','בסוף מוצג סיכום של כל ההצבעות!']}},
+      frog:{en:{title:'🐸 Frog Catcher',steps:['Each player has 3 frogs','Frogs appear randomly and disappear fast','Tap enemy frogs to catch them','Eliminate all frogs of a player to remove them','Last player with frogs wins']},
+          he:{title:'🐸 תפוס צפרדע',steps:['לכל שחקן 3 צפרדעים על הלוח','הצפרדעים מופיעות באקראי ונעלמות מהר','לחץ על הצפרדעים של היריב כדי לתפוס!','תפוס את כל הצפרדעים של מישהו — הוא מסולק','השחקן האחרון עם צפרדעים מנצח!']}},
+  };
+  var g=guides[game];
+  if(!g)return;
+  var info=g[lang]||g.en;
+  document.getElementById('guideModalTitle').textContent=info.title;
+  document.getElementById('guideContent').innerHTML=info.steps.map(function(s,i){
+    return '<div class="guide-step"><div class="guide-icon" style="font-size:1.2rem;min-width:24px;text-align:center;">'+(i+1)+'</div><div><div class="guide-step-desc">'+s+'</div></div></div>';
+  }).join('');
+  document.getElementById('guideModal').style.display='flex';
+}
 window.openAbout=function(){updateAboutContent();document.getElementById('aboutModal').style.display='flex';};
 window.closeModal=function(id){document.getElementById(id).style.display='none';};
 document.addEventListener('click',function(e){if(e.target.classList.contains('modal-overlay'))e.target.style.display='none';});
@@ -1272,7 +1510,7 @@ function applyT(){
   _st('txt-noLimit',t('noLimit'));
   // Game names
   var gameNames={trivia:t('trivia'),forbidden:t('forbidden'),
-    whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr')};
+    whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr'),frog:t('frog')};
   Object.keys(gameNames).forEach(function(k){var el=document.getElementById('gn-'+k);if(el)el.textContent=gameNames[k];});
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
@@ -1577,7 +1815,8 @@ function handleCountdown(room){
         forbidden:initForbidden,
         whoami:initWhoami,
         bomb:initBomb,
-        wyr:initWyr
+        wyr:initWyr,
+        frog:initFrog
       };
       if(initMap[selectedGame]) initMap[selectedGame]();
     }
@@ -1635,6 +1874,7 @@ function listenRoom(){
     else if(room.status==='whoami')loadWhoami(room);
     else if(room.status==='bomb')loadBomb(room);
     else if(room.status==='wyr')loadWyr(room);
+    else if(room.status==='frog')loadFrog(room);
     else if(room.status==='results')showResults(room);
   });
   
@@ -2978,15 +3218,23 @@ window.voteWyr=async function(choice){
     const roomSnap=await db.ref('rooms/'+roomCode).once('value');
     const r=roomSnap.val();
     const totalPlayers=Object.keys(r.players||{}).length;
-    const votedCount=Object.keys(r.wyrAnswers||{}).length+1; // +1 for this vote
-    if(votedCount>=totalPlayers){
-      // All voted! Wait 3 seconds then advance
-      setTimeout(async function(){
-        const latestSnap=await db.ref('rooms/'+roomCode).once('value');
-        if(latestSnap.exists()&&latestSnap.val().wyrState==='voting'){
-          nextWyrRound();
+    const votes=r.wyrAnswers||{};
+    // Count including this vote
+    const votedSoFar=Object.keys(votes).length+(votes[myId]?0:1);
+    if(votedSoFar>=totalPlayers){
+      // All voted! Show countdown, then auto-advance
+      let cd=3;
+      const cdInterval=setInterval(function(){
+        const cdEl=document.getElementById('wyrCountdown');
+        if(cdEl)cdEl.textContent=cd;
+        cd--;
+        if(cd<0){
+          clearInterval(cdInterval);
+          db.ref('rooms/'+roomCode).once('value').then(function(snap){
+            if(snap.exists()&&snap.val().wyrState==='voting') nextWyrRound();
+          });
         }
-      },3000);
+      },1000);
     }
   }
 };
@@ -3685,6 +3933,45 @@ function initNumber(){initTrivia();}
       <div class="sidebar-title">Scores</div>
       <div id="fastestSidebarScores"></div>
       <div id="fastestHostControls"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- FROG CATCHER SCREEN -->
+<div class="screen" id="frogScreen">
+  <div class="app-header">
+    <div class="header-logo">🐸 <span id="txt-frog-h">Frog Catcher</span></div>
+    <div class="header-info">
+      <div class="room-pill" id="frogCode">----</div>
+      <button class="leave-header-btn" onclick="confirmLeave()">Leave</button>
+    </div>
+  </div>
+  <div class="float-settings"><div class="float-settings-row">
+    <button class="float-theme-btn sbar-theme" onclick="toggleTheme()">🌙</button>
+    <button class="float-theme-btn" onclick="openGuide('frog')">❓</button>
+    <div class="float-divider"></div>
+    <button class="float-lang-btn" onclick="setLang('en',this)" data-lang="en">🇬🇧</button>
+    <button class="float-lang-btn" onclick="setLang('he',this)" data-lang="he">🇮🇱</button>
+  </div></div>
+  <div class="game-layout">
+    <div class="game-main">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-bottom:8px;">
+        <div id="frogMyFrogs" style="font-family:'Cinzel',serif;font-size:1rem;color:var(--gold);"></div>
+        <div id="frogStatus" style="font-size:0.82rem;color:var(--text-dim);"></div>
+        <div id="frogRound" style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-dim);"></div>
+      </div>
+      <!-- GAME BOARD -->
+      <div id="frogBoard" style="position:relative;background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;overflow:hidden;touch-action:none;" onclick="catchFrog(event)"></div>
+      <div id="frogEliminated" style="display:none;text-align:center;padding:20px;background:#3A0000;border-radius:12px;border:1px solid var(--red);margin-top:10px;">
+        <div style="font-size:2rem;">😵</div>
+        <div style="color:var(--red);font-weight:700;" id="frogEliminatedText">You were eliminated!</div>
+      </div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-title">🐸 Frogs Left</div>
+      <div id="frogSidebarScores"></div>
+      <div id="frogHostControls"></div>
     </div>
   </div>
 </div>
