@@ -454,13 +454,37 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
     </div>
     <div>
       <div style="font-size:0.7rem;color:var(--gold);font-weight:700;letter-spacing:2px;margin-bottom:8px;" data-i="chooseGame">בחר משחק</div>
-      <div class="game-select-grid" style="grid-template-columns:repeat(5,1fr);">
-        <div class="game-opt active" onclick="selectGame('trivia')" id="go-trivia"><span class="game-opt-icon">🧠</span><span class="game-opt-name" id="gn-trivia">Trivia</span></div>
-        <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden"><span class="game-opt-icon">🚫</span><span class="game-opt-name" id="gn-forbidden">Forbidden</span></div>
-        <div class="game-opt" onclick="selectGame('whoami')" id="go-whoami"><span class="game-opt-icon">🃏</span><span class="game-opt-name" id="gn-whoami">Who Am I</span></div>
-        <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb"><span class="game-opt-icon">💣</span><span class="game-opt-name" id="gn-bomb">Hot Potato</span></div>
-        <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr"><span class="game-opt-icon">🔮</span><span class="game-opt-name" id="gn-wyr">Vote / WYR</span></div>
-        <div class="game-opt" onclick="selectGame('frog')" id="go-frog"><span class="game-opt-icon">🐸</span><span class="game-opt-name" id="gn-frog">Frog Catcher</span></div>
+      <div class="game-select-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div class="game-opt active" onclick="selectGame('trivia')" id="go-trivia">
+          <span class="game-opt-icon">🧠</span>
+          <span class="game-opt-name" id="gn-trivia">Trivia</span>
+          <button onclick="event.stopPropagation();openGuide('trivia')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('forbidden')" id="go-forbidden">
+          <span class="game-opt-icon">🚫</span>
+          <span class="game-opt-name" id="gn-forbidden">Forbidden</span>
+          <button onclick="event.stopPropagation();openGuide('forbidden')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('whoami')" id="go-whoami">
+          <span class="game-opt-icon">🃏</span>
+          <span class="game-opt-name" id="gn-whoami">Who Am I</span>
+          <button onclick="event.stopPropagation();openGuide('whoami')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb">
+          <span class="game-opt-icon">💣</span>
+          <span class="game-opt-name" id="gn-bomb">Hot Potato</span>
+          <button onclick="event.stopPropagation();openGuide('bomb')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr">
+          <span class="game-opt-icon">🔮</span>
+          <span class="game-opt-name" id="gn-wyr">Vote / WYR</span>
+          <button onclick="event.stopPropagation();openGuide('wyr')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
+        <div class="game-opt" onclick="selectGame('frog')" id="go-frog">
+          <span class="game-opt-icon">🐸</span>
+          <span class="game-opt-name" id="gn-frog">Frog Catcher</span>
+          <button onclick="event.stopPropagation();openGuide('frog')" style="display:block;margin:4px auto 0;background:none;border:1px solid var(--gold-dim);border-radius:6px;color:var(--gold-dim);font-size:0.65rem;padding:1px 6px;cursor:pointer;">❓ How to play</button>
+        </div>
       </div>
       <!-- WHO AM I SETUP - shown when whoami selected -->
       <div id="whoamiLobbySetup" style="display:none;background:var(--dark2);border:1px solid var(--gold-dim);border-radius:12px;padding:12px;margin-top:8px;">
@@ -828,7 +852,13 @@ const T = {
     players:'Players',chooseGame:'Choose Game',trivia:'Trivia',forbidden:'Forbidden Word',draw:'Drawing',
     startGame:'Start Game ▶',leave:'Leave',leaveRoom:'Leave Room',
     waitingForHost:'Waiting for host...',hostWillStart:'The host will start the game soon',
-    liveScores:'Live Scores',yourTurnDescribe:'Your turn to describe!',dontSay:'Do not say:',
+    liveScores:'Live Scores',
+    whoamiTurnLabel:'CURRENT TURN',
+    wyrModeWYR:'Would You Rather',
+    wyrModeMyList:'My List',
+    wyrModeCustomLabel:'Custom',
+    addToList:'Add to list',
+    startWithAll:'Start with all questions',answerHint:'Answer their question:',survivorsLabel:'Players alive:',yourTurnDescribe:'Your turn to describe!',dontSay:'Do not say:',
     sendGuess:'Send',guessDraw:'Guess the drawing...',guessWord:'Guess...',
     messagePlaceholder:'Message...',send:'Send',clear:'Clear',
     results:'Results',gameOver:'Game Over!',playAgain:'Play Again 🔄',
@@ -844,6 +874,14 @@ const T = {
     triviaStarted:'🧠 Trivia started!',forbiddenStarted:'🚫 Forbidden Word started!',drawStarted:'🎨 Drawing started!',
     guessedCorrectly:'guessed correctly! 🎉',needPlayer:'Need at least 1 player!',
     history:'Game History',
+    howToPlay:'How to play',
+    liveScores:'Live Scores',
+    whoamiTurnLabel:'CURRENT TURN',
+    wyrModeWYR:'Would You Rather',
+    wyrModeMyList:'My List',
+    wyrModeCustomLabel:'Custom',
+    addToList:'Add to list',
+    startWithAll:'Start with all questions',answerHint:'Answer their question:',survivorsLabel:'Players alive:',liveScoresLabel:'Live',playersLabel:'Players',yourIdentity:'YOUR IDENTITY (do not look!)',othersCanSee:'Others can see your identity — ask YES/NO questions!',
     muted:'You are muted',
     noLimit:'No Limit',
     broadcast:'Message All',
@@ -885,7 +923,13 @@ const T = {
     players:'שחקנים',chooseGame:'בחר משחק',trivia:'טריוויה',forbidden:'מילה אסורה',draw:'ציור',
     startGame:'התחל משחק ▶',leave:'יציאה',leaveRoom:'עזוב חדר',
     waitingForHost:'ממתין למארח...',hostWillStart:'המארח יתחיל את המשחק בקרוב',
-    liveScores:'ניקוד חי',yourTurnDescribe:'תורך לתאר!',dontSay:'אסור לומר:',
+    liveScores:'ניקוד חי',
+    whoamiTurnLabel:'תור נוכחי',
+    wyrModeWYR:'מה עדיף',
+    wyrModeMyList:'הרשימה שלי',
+    wyrModeCustomLabel:'מותאם',
+    addToList:'הוסף לרשימה',
+    startWithAll:'התחל עם כל השאלות',answerHint:'ענה על השאלה שלהם:',survivorsLabel:'שחקנים בחיים:',yourTurnDescribe:'תורך לתאר!',dontSay:'אסור לומר:',
     sendGuess:'שלח',guessDraw:'נחש את הציור...',guessWord:'נחש...',
     messagePlaceholder:'הודעה...',send:'שלח',clear:'נקה',
     results:'תוצאות',gameOver:'המשחק הסתיים!',playAgain:'שחק שוב 🔄',
@@ -901,6 +945,14 @@ const T = {
     triviaStarted:'🧠 טריוויה התחילה!',forbiddenStarted:'🚫 מילה אסורה התחילה!',drawStarted:'🎨 ציור התחיל!',
     guessedCorrectly:'ניחש נכון! 🎉',needPlayer:'צריך לפחות שחקן אחד!',
     history:'היסטוריית משחקים',
+    howToPlay:'איך משחקים',
+    liveScores:'ניקוד חי',
+    whoamiTurnLabel:'תור נוכחי',
+    wyrModeWYR:'מה עדיף',
+    wyrModeMyList:'הרשימה שלי',
+    wyrModeCustomLabel:'מותאם',
+    addToList:'הוסף לרשימה',
+    startWithAll:'התחל עם כל השאלות',answerHint:'ענה על השאלה שלהם:',survivorsLabel:'שחקנים בחיים:',liveScoresLabel:'חי',playersLabel:'שחקנים',yourIdentity:'הזהות שלך (אל תסתכל!)',othersCanSee:'אחרים רואים את זהותך — שאל שאלות כן/לא!',
     muted:'אתה מושתק',
     noLimit:'ללא הגבלה',
     broadcast:'הודעה לכולם',
@@ -958,6 +1010,14 @@ const T = {
     triviaStarted:'🧠 Викторина началась!',forbiddenStarted:'🚫 Запретное слово началось!',drawStarted:'🎨 Рисование началось!',
     guessedCorrectly:'угадал правильно! 🎉',needPlayer:'Нужен хотя бы один игрок!',
     history:'История игр',
+    howToPlay:'Как играть',
+    liveScores:'Живые очки',
+    whoamiTurnLabel:'ТЕКУЩИЙ ХОД',
+    wyrModeWYR:'Что лучше',
+    wyrModeMyList:'Мой список',
+    wyrModeCustomLabel:'Свой',
+    addToList:'Добавить',
+    startWithAll:'Начать со всеми вопросами',answerHint:'Ответь на их вопрос:',survivorsLabel:'Игроки живы:',liveScoresLabel:'Вживую',playersLabel:'Игроки',yourIdentity:'ТВОЯ ЛИЧНОСТЬ (не смотри!)',othersCanSee:'Другие видят твою личность — задавай вопросы ДА/НЕТ!',
     muted:'Вы в муте',
     noLimit:'Без лимита',
     broadcast:'Сообщение всем',
@@ -1015,6 +1075,14 @@ const T = {
     triviaStarted:'🧠 Trivia comenzo!',forbiddenStarted:'🚫 Palabra Prohibida comenzo!',drawStarted:'🎨 Dibujo comenzo!',
     guessedCorrectly:'adivino correctamente! 🎉',needPlayer:'Necesitas al menos 1 jugador!',
     history:'Historial',
+    howToPlay:'Como jugar',
+    liveScores:'Puntuacion en vivo',
+    whoamiTurnLabel:'TURNO ACTUAL',
+    wyrModeWYR:'Que prefieres',
+    wyrModeMyList:'Mi lista',
+    wyrModeCustomLabel:'Propio',
+    addToList:'Agregar',
+    startWithAll:'Empezar con todo',answerHint:'Responde su pregunta:',survivorsLabel:'Jugadores vivos:',liveScoresLabel:'Vivo',playersLabel:'Jugadores',yourIdentity:'TU IDENTIDAD (no mires!)',othersCanSee:'Los demas ven tu identidad — haz preguntas SI/NO!',
     muted:'Estas silenciado',
     noLimit:'Sin limite',
     broadcast:'Mensaje a todos',
@@ -1072,6 +1140,14 @@ const T = {
     triviaStarted:'بدات التريفيا!',forbiddenStarted:'بدات الكلمة المحظورة!',drawStarted:'بدا الرسم!',
     guessedCorrectly:'خمن بشكل صحيح!',needPlayer:'تحتاج لاعبا واحدا على الاقل!',
     history:'سجل الألعاب',
+    howToPlay:'كيف تلعب',
+    liveScores:'النقاط الحية',
+    whoamiTurnLabel:'الدور الحالي',
+    wyrModeWYR:'ماذا تفضل',
+    wyrModeMyList:'قائمتي',
+    wyrModeCustomLabel:'مخصص',
+    addToList:'اضف للقائمة',
+    startWithAll:'ابدأ بكل الاسئلة',answerHint:'اجب على سؤالهم:',survivorsLabel:'اللاعبون على قيد الحياة:',liveScoresLabel:'مباشر',playersLabel:'اللاعبون',yourIdentity:'هويتك (لا تنظر!)',othersCanSee:'الاخرون يرون هويتك — اسأل اسئلة نعم/لا!',
     muted:'انت مكتوم',
     noLimit:'بلا حد',
     broadcast:'رسالة للجميع',
@@ -1332,13 +1408,22 @@ function applyT(){
   // Game names
   var gameNames={trivia:t('trivia'),forbidden:t('forbidden'),
     whoami:t('whoami'),bomb:t('bomb'),wyr:t('wyr'),frog:t('frog')};
-  Object.keys(gameNames).forEach(function(k){var el=document.getElementById('gn-'+k);if(el)el.textContent=gameNames[k];});
+  Object.keys(gameNames).forEach(function(k){
+    var el=document.getElementById('gn-'+k);if(el)el.textContent=gameNames[k];
+    // Update guide button text
+    var go=document.getElementById('go-'+k);
+    if(go){var btn=go.querySelector('button');if(btn)btn.innerHTML='❓ '+t('howToPlay');}
+  });
   // Share buttons text
   var btnCp=document.getElementById('btn-cp');
   var btnSh=document.getElementById('btn-sh');
   if(btnCp)btnCp.textContent=L.copyLink;
   if(btnSh)btnSh.textContent=L.share;
 
+  // WYR mode labels
+  _st('txt-wyrModeWYR',t('wyrModeWYR'));
+  _st('txt-wyrModeMyList',t('wyrModeMyList'));
+  _st('txt-startWithAll',t('startWithAll'));
   // Guide/About if modals are open
   updateGuideContent();
   updateAboutContent();
@@ -1350,6 +1435,29 @@ function applyT(){
   _st('txt-bomb-h',t('bomb'));
   _st('txt-wyr-h',t('wyr'));
   _st('txt-fastest-h',t('fastest'));
+  _st('txt-frog-h',t('frog'));
+  // Game screen labels
+  _st('txt-liveScores-wyr',t('liveScores'));
+  _st('txt-liveScores-fb',t('liveScores'));
+  _st('txt-bombPlayers',t('playersLabel'));
+  _st('txt-whoamiMyCard',t('yourIdentity'));
+  _st('txt-whoamiBlurHint',t('othersCanSee'));
+  _st('txt-whoamiTurn',t('whoamiTurnLabel')||'CURRENT TURN');
+  _st('txt-whoamiAnswerHint',t('answerHint')||'Answer their question:');
+  _st('txt-bombSurvivors',t('survivorsLabel')||'Players alive:');
+  _st('txt-voteAsk',t('voteAsk'));
+  _st('txt-wyrHostTitle',t('wyrHostTitle'));
+  // Settings labels
+  _st('txt-settingsTitle',t('settingsTitle'));
+  _st('txt-numQuestions',t('numQuestions'));
+  _st('txt-timePerQ',t('timePerQ'));
+  _st('txt-categoryLabel',t('category'));
+  _st('txt-noLimit',t('noLimit'));
+  _st('txt-bombDurLabel',t('bombDurLabel'));
+  _st('txt-bombDifficulty',t('bombDifficulty'));
+  _st('diff-easy',t('diffEasy'));
+  _st('diff-medium',t('diffMedium'));
+  _st('diff-hard',t('diffHard'));
 }
 function _st(id,val){var el=document.getElementById(id);if(el&&val)el.textContent=val;}
 function _ph(id,val){var el=document.getElementById(id);if(el&&val)el.placeholder=val;}
@@ -3964,8 +4072,8 @@ loadFrog=function(room){
           <!-- Mode tabs -->
           <div style="display:flex;gap:6px;margin-bottom:10px;">
             <button class="settings-opt active" onclick="wyrSetMode('custom',this)" id="wyrModeCustom" style="flex:1;padding:7px;font-size:0.78rem;">✏️ Custom</button>
-            <button class="settings-opt" onclick="wyrSetMode('wyr',this)" id="wyrModeWyr" style="flex:1;padding:7px;font-size:0.78rem;">🔮 Would You Rather</button>
-            <button class="settings-opt" onclick="wyrSetMode('list',this)" id="wyrModeList" style="flex:1;padding:7px;font-size:0.78rem;">📋 My List</button>
+            <button class="settings-opt" onclick="wyrSetMode('wyr',this)" id="wyrModeWyr" style="flex:1;padding:7px;font-size:0.78rem;">🔮 <span id="txt-wyrModeWYR">Would You Rather</span></button>
+            <button class="settings-opt" onclick="wyrSetMode('list',this)" id="wyrModeList" style="flex:1;padding:7px;font-size:0.78rem;">📋 <span id="txt-wyrModeMyList">My List</span></button>
           </div>
           <!-- Custom mode -->
           <div id="wyrCustomArea">
@@ -3992,7 +4100,7 @@ loadFrog=function(room){
             </div>
             <button class="settings-opt" onclick="wyrAddToList()" style="width:100%;padding:7px;margin-bottom:8px;">➕ Add to list</button>
             <div id="wyrMyList" style="max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px;"></div>
-            <button class="lobby-start" style="width:100%;" onclick="launchWyrList()">▶ Start with all questions</button>
+            <button class="lobby-start" style="width:100%;" onclick="launchWyrList()" id="txt-startWithAll">▶ Start with all questions</button>
           </div>
           <button class="lobby-start" style="margin-top:12px;width:100%;" id="wyrLaunchBtn" onclick="launchWyr()">🚀 Launch!</button>
         </div>
