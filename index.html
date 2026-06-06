@@ -1494,11 +1494,18 @@ window.selectGame=function(g){
   if(whoamiSetup)whoamiSetup.style.display=(g==='whoami'?'block':'none');
   // Show/hide settings panel (only relevant for trivia)
   var sp=document.getElementById('roomSettingsPanel');
-  if(sp)sp.style.display=(g==='trivia'||g==='bomb'?'':'none');
+  if(sp)sp.style.display=(g==='trivia'||g==='bomb'||g==='frog'?'':'none');
   var bd=document.getElementById('bombDurRow');
   if(bd)bd.style.display=(g==='bomb'?'':'none');
   var tqRows=['settingsNumQ','settingsTime','txt-numQuestions','txt-timePerQ','settingsCategory','txt-categoryLabel'];
   tqRows.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=(g==='trivia'?'':'none');});
+  // Show frog settings
+  var frogD=document.getElementById('frogDiffRow');
+  var frogF=document.getElementById('frogFrogsRow');
+  if(frogD)frogD.style.display=(g==='frog'?'':'none');
+  if(frogF)frogF.style.display=(g==='frog'?'':'none');
+  // Show panel for frog too
+  if(sp&&g==='frog')sp.style.display='';
 };
 
 window.shareVia=function(platform){
@@ -2687,6 +2694,13 @@ function showResults(room){
   playSound('start');
   // Load history
   loadHistory();
+  // Show WYR summary if this was a WYR game
+  var wss=document.getElementById('wyrSummarySection');
+  if(wss)wss.style.display='none';
+  if(room.wyrHistory){
+    var hist=Object.values(room.wyrHistory||{}).sort(function(a,b){return a.ts-b.ts;});
+    if(hist.length>0) renderWyrSummary(hist);
+  }
 }
 
 function renderWyrSummary(history){
