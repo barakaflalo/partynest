@@ -26,453 +26,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
 
 
-// ============================================================
-// ===== RACE GAME ============================================
-// ============================================================
-
-// Track definition - oval path as array of {x,y} waypoints (% of canvas)
-var TRACK_WAYPOINTS = [
-  {x:0.50, y:0.12}, // top center
-  {x:0.78, y:0.15},
-  {x:0.90, y:0.30},
-  {x:0.90, y:0.50},
-  {x:0.90, y:0.70},
-  {x:0.78, y:0.85},
-  {x:0.50, y:0.88}, // bottom center
-  {x:0.22, y:0.85},
-  {x:0.10, y:0.70},
-  {x:0.10, y:0.50},
-  {x:0.10, y:0.30},
-  {x:0.22, y:0.15},
-];
-var TRACK_WIDTH = 0.12; // % of canvas width
-var TOTAL_LAPS = 3;
-var PLAYER_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
-var CAR_EMOJIS = ['🏎️','🚗','🚕','🚙','🚓','🚑'];
-
-// Race state (local)
-var raceAnimFrame = null;
-var raceLastUpdate = 0;
-var raceCanvasW = 400;
-var raceCanvasH = 300;
-
-// Get point along track (0-1 = full lap)
-function raceGetTrackPoint(progress) {
-  var pts = TRACK_WAYPOINTS;
-  var n = pts.length;
-  var t = ((progress % 1) + 1) % 1;
-  var idx = Math.floor(t * n);
-  var next = (idx + 1) % n;
-  var frac = (t * n) - idx;
-  return {
-    x: pts[idx].x + (pts[next].x - pts[idx].x) * frac,
-    y: pts[idx].y + (pts[next].y - pts[idx].y) * frac
-  };
-}
-
-function raceGetAngle(progress) {
-  var p1 = raceGetTrackPoint(progress);
-  var p2 = raceGetTrackPoint(progress + 0.01);
-  return Math.atan2(p2.y - p1.y, p2.x - p1.x);
-}
-
-function initRace() {
-  var players = Object.keys(scores);
-  var racePlayers = {};
-  players.forEach(function(id, i) {
-    racePlayers[id] = {
-      name: (scores[id]||{name:'?'}).name,
-      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-      car: CAR_EMOJIS[i % CAR_EMOJIS.length],
-      progress: i * 0.02, // stagger start
-      speed: 0,
-      lap: 0,
-      finished: false,
-      finishTime: 0,
-      score: 0
-    };
-  });
-  db.ref('rooms/'+roomCode).update({
-    status: 'race',
-    racePlayers: racePlayers,
-    raceState: 'countdown',
-    raceStart: Date.now() + 4000, // 4s countdown
-    raceLaps: TOTAL_LAPS,
-    chat: null
-  });
-  systemMsg('🏎️ Race started!');
-}
-
-function loadRace(room) {
-  if(!room.racePlayers) return;
-  showScreen('race');
-  document.getElementById('raceCode').textContent = roomCode;
-  
-  // Setup canvas
-  var canvas = document.getElementById('raceCanvas');
-  raceCanvasW = Math.min(500, window.innerWidth - 24);
-  raceCanvasH = Math.round(raceCanvasW * 0.7);
-  canvas.width = raceCanvasW;
-  canvas.height = raceCanvasH;
-  canvas.style.height = raceCanvasH + 'px';
-  
-  // Show/hide countdown
-  var cdEl = document.getElementById('raceCountdown');
-  var finEl = document.getElementById('raceFinished');
-  var gasBtn = document.getElementById('raceGasBtn');
-  
-  if(room.raceState === 'countdown') {
-    cdEl.style.display = 'flex';
-    finEl.style.display = 'none';
-    gasBtn.disabled = true;
-    gasBtn.style.opacity = '0.5';
-  } else if(room.raceState === 'racing') {
-    cdEl.style.display = 'none';
-    finEl.style.display = 'none';
-    gasBtn.disabled = false;
-    gasBtn.style.opacity = '1';
-  } else if(room.raceState === 'finished') {
-    cdEl.style.display = 'none';
-    finEl.style.display = 'flex';
-    gasBtn.disabled = true;
-    gasBtn.style.opacity = '0.5';
-    showRaceResults(room);
-  }
-  
-  // Update lap/position display
-  var myData = room.racePlayers[myId] || {};
-  var lap = myData.lap || 0;
-  document.getElementById('raceLapInfo').textContent = 'Lap ' + Math.min(lap+1, TOTAL_LAPS) + '/' + TOTAL_LAPS;
-  
-  // Position
-  var sorted = Object.entries(room.racePlayers).sort(function(a,b) {
-    if(b[1].lap !== a[1].lap) return b[1].lap - a[1].lap;
-    return b[1].progress - a[1].progress;
-  });
-  var myPos = sorted.findIndex(function(e){return e[0]===myId;}) + 1;
-  document.getElementById('raceMyPos').textContent = myPos + '/' + sorted.length;
-  
-  // Position badges
-  var posDiv = document.getElementById('racePositions');
-  if(posDiv) {
-    var medals = ['🥇','🥈','🥉'];
-    posDiv.innerHTML = sorted.map(function(e, i) {
-      var p = e[1];
-      return '<div class="race-pos-badge" style="background:'+p.color+'22;border:1px solid '+p.color+';color:'+p.color+'">'+
-        (medals[i]||('#'+(i+1)))+' '+p.name+
-      '</div>';
-    }).join('');
-  }
-  
-  // Host controls
-  renderHostControls('raceHostControls',
-    isHost ? '<button class="host-ctrl-btn primary" onclick="restartRace()">🔄 New Race</button>' : '');
-  
-  // Start animation loop
-  if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
-  raceLoop(room);
-}
-
-function raceLoop(initialRoom) {
-  var lastRoom = initialRoom;
-  
-  function tick() {
-    var now = Date.now();
-    
-    // Countdown logic
-    if(lastRoom.raceState === 'countdown') {
-      var remaining = Math.ceil((lastRoom.raceStart - now) / 1000);
-      var cdEl = document.getElementById('raceCountdownNum');
-      if(cdEl) {
-        if(remaining > 0) {
-          cdEl.textContent = remaining;
-        } else {
-          cdEl.textContent = 'GO! 🏁';
-          // Enable gas after countdown
-          var gb = document.getElementById('raceGasBtn');
-          if(gb) { gb.disabled = false; gb.style.opacity = '1'; }
-        }
-      }
-    }
-    
-    // Timer
-    if(lastRoom.raceState === 'racing' && lastRoom.raceStart) {
-      var elapsed = Math.floor((now - lastRoom.raceStart) / 1000);
-      var mins = Math.floor(elapsed / 60);
-      var secs = elapsed % 60;
-      var timerEl = document.getElementById('raceTimer');
-      if(timerEl) timerEl.textContent = mins + ':' + ('0'+secs).slice(-2);
-    }
-    
-    // Draw
-    drawRaceTrack(lastRoom);
-    
-    if(lastRoom.raceState !== 'finished') {
-      raceAnimFrame = requestAnimationFrame(tick);
-    }
-  }
-  
-  // Listen for room updates
-  db.ref('rooms/'+roomCode).on('value', function(snap) {
-    if(!snap.exists()) return;
-    var room = snap.val();
-    if(room.status !== 'race') {
-      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
-      db.ref('rooms/'+roomCode).off('value');
-      return;
-    }
-    lastRoom = room;
-    
-    // Check state changes
-    if(room.raceState === 'finished') {
-      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
-      showRaceResults(room);
-    }
-  });
-  
-  tick();
-}
-
-function drawRaceTrack(room) {
-  var canvas = document.getElementById('raceCanvas');
-  if(!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var W = raceCanvasW, H = raceCanvasH;
-  
-  // Clear
-  ctx.clearRect(0, 0, W, H);
-  
-  // Background
-  ctx.fillStyle = '#0F1A0F';
-  ctx.fillRect(0, 0, W, H);
-  
-  // Draw track (outer path)
-  var trackW = TRACK_WIDTH * W;
-  
-  // Draw track surface
-  ctx.strokeStyle = '#555';
-  ctx.lineWidth = trackW;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  var pts = TRACK_WAYPOINTS;
-  var p0 = raceGetTrackPoint(0);
-  ctx.moveTo(p0.x * W, p0.y * H);
-  for(var i = 1; i <= pts.length; i++) {
-    var p = raceGetTrackPoint(i / pts.length);
-    ctx.lineTo(p.x * W, p.y * H);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  
-  // Track center line (dashed)
-  ctx.strokeStyle = '#FFD70033';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 15]);
-  ctx.beginPath();
-  var pc0 = raceGetTrackPoint(0);
-  ctx.moveTo(pc0.x * W, pc0.y * H);
-  for(var j = 1; j <= pts.length * 2; j++) {
-    var pc = raceGetTrackPoint(j / (pts.length * 2));
-    ctx.lineTo(pc.x * W, pc.y * H);
-  }
-  ctx.closePath();
-  ctx.stroke();
-  ctx.setLineDash([]);
-  
-  // Start/Finish line
-  var sfPt = raceGetTrackPoint(0);
-  var sfAngle = raceGetAngle(0) + Math.PI/2;
-  ctx.strokeStyle = '#FFFFFF';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(
-    sfPt.x * W - Math.cos(sfAngle) * trackW/2,
-    sfPt.y * H - Math.sin(sfAngle) * trackW/2
-  );
-  ctx.lineTo(
-    sfPt.x * W + Math.cos(sfAngle) * trackW/2,
-    sfPt.y * H + Math.sin(sfAngle) * trackW/2
-  );
-  ctx.stroke();
-  
-  // Draw cars
-  var racePlayers = room.racePlayers || {};
-  Object.entries(racePlayers).forEach(function(entry) {
-    var pid = entry[0], p = entry[1];
-    var pt = raceGetTrackPoint(p.progress % 1);
-    var angle = raceGetAngle(p.progress % 1);
-    var x = pt.x * W, y = pt.y * H;
-    var isMe = pid === myId;
-    
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    
-    // Car shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(-14, -7, 28, 14);
-    
-    // Car body
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.roundRect(-12, -6, 24, 12, 4);
-    ctx.fill();
-    
-    // Windshield
-    ctx.fillStyle = 'rgba(200,230,255,0.6)';
-    ctx.fillRect(-2, -5, 8, 10);
-    
-    // Wheels
-    ctx.fillStyle = '#222';
-    [[-10,-7],[-10,7],[8,-7],[8,7]].forEach(function(w) {
-      ctx.fillRect(w[0]-3, w[1]-2, 6, 4);
-    });
-    
-    // My car indicator (glow)
-    if(isMe) {
-      ctx.strokeStyle = '#FFF';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(-14, -8, 28, 16, 5);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-    
-    // Name label
-    ctx.fillStyle = isMe ? '#FFF' : p.color;
-    ctx.font = (isMe ? 'bold ' : '') + '10px Heebo, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(p.name.slice(0,8), x, y - 14);
-  });
-}
-
-window.raceGas = async function() {
-  if(raceLastUpdate && Date.now() - raceLastUpdate < 50) return; // throttle
-  raceLastUpdate = Date.now();
-  
-  var snap = await db.ref('rooms/'+roomCode).once('value');
-  if(!snap.exists()) return;
-  var room = snap.val();
-  
-  if(room.raceState === 'countdown') {
-    var now = Date.now();
-    if(now < room.raceStart) return; // not started yet
-  }
-  if(room.raceState === 'finished') return;
-  
-  var myData = room.racePlayers && room.racePlayers[myId];
-  if(!myData || myData.finished) return;
-  
-  // If countdown done, switch to racing
-  if(room.raceState === 'countdown' && Date.now() >= room.raceStart) {
-    await db.ref('rooms/'+roomCode+'/raceState').set('racing');
-  }
-  
-  // Accelerate - each tap moves forward
-  var boost = 0.004 + Math.random() * 0.002; // slight randomness
-  var newProgress = (myData.progress || 0) + boost;
-  var newLap = myData.lap || 0;
-  
-  // Check lap completion
-  if(Math.floor(newProgress) > Math.floor(myData.progress || 0)) {
-    newLap = newLap + 1;
-    if(newLap >= TOTAL_LAPS) {
-      // Finished!
-      var finishTime = Date.now() - (room.raceStart || Date.now());
-      var pts = Math.max(100, 1000 - Object.values(room.racePlayers||{}).filter(function(p){return p.finished;}).length * 200);
-      await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
-        progress: newProgress, lap: TOTAL_LAPS,
-        finished: true, finishTime: finishTime, score: pts
-      });
-      playSound('correct');
-      // Check if all finished
-      if(isHost) setTimeout(checkRaceEnd, 1000);
-      return;
-    }
-    playSound('start');
-  }
-  
-  await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
-    progress: newProgress, lap: newLap
-  });
-};
-
-async function checkRaceEnd() {
-  var snap = await db.ref('rooms/'+roomCode).once('value');
-  if(!snap.exists()) return;
-  var room = snap.val();
-  var players = Object.values(room.racePlayers||{});
-  var allDone = players.every(function(p){return p.finished;});
-  var anyDone = players.some(function(p){return p.finished;});
-  // End if all done OR if first finisher has been done for 30s
-  if(allDone || (anyDone && players.filter(function(p){return p.finished;}).length === players.length - 1)) {
-    var fs = {};
-    Object.entries(room.racePlayers||{}).forEach(function(e){ fs[e[0]] = e[1].score || 0; });
-    await db.ref('rooms/'+roomCode).update({raceState:'finished', status:'results', finalScores: fs});
-  }
-}
-
-function showRaceResults(room) {
-  var finEl = document.getElementById('raceFinished');
-  var winnerEl = document.getElementById('raceWinnerText');
-  var resultsList = document.getElementById('raceResultsList');
-  if(!finEl) return;
-  finEl.style.display = 'flex';
-  var sorted = Object.entries(room.racePlayers||{}).sort(function(a,b){
-    if(a[1].finished && b[1].finished) return a[1].finishTime - b[1].finishTime;
-    if(a[1].finished) return -1;
-    if(b[1].finished) return 1;
-    return b[1].progress - a[1].progress;
-  });
-  var medals = ['🥇','🥈','🥉'];
-  if(winnerEl && sorted[0]) winnerEl.textContent = medals[0]+' '+(sorted[0][1].name||'?')+' wins!';
-  if(resultsList) {
-    resultsList.innerHTML = sorted.map(function(e,i){
-      var p = e[1];
-      var t = p.finishTime ? Math.floor(p.finishTime/1000)+'s' : 'DNF';
-      return (medals[i]||'#'+(i+1))+' '+p.name+' — '+t;
-    }).join('<br>');
-  }
-}
-
-window.restartRace = function() {
-  if(!isHost) return;
-  db.ref('rooms/'+roomCode).update({status:'lobby'});
-};
-
-// Add race guide
-var _origShowGameGuide = showGameGuide;
-showGameGuide = function(game) {
-  if(game === 'race') {
-    var info = {
-      en: {title:'🏎️ Race!', steps:[
-        'Everyone sees the same oval track',
-        'Press GAS as fast as you can to move forward!',
-        'Complete '+TOTAL_LAPS+' laps before everyone else',
-        'First to cross the finish line wins!',
-        'Tap faster = go faster!'
-      ]},
-      he: {title:'🏎️ מירוץ!', steps:[
-        'כולם רואים את אותו מסלול',
-        'לחץ גז כמה שיותר מהר כדי להתקדם!',
-        'השלם '+TOTAL_LAPS+' סיבובים לפני כולם',
-        'הראשון לחצות את קו הסיום מנצח!',
-        'לחיצות מהירות יותר = נסיעה מהירה יותר!'
-      ]}
-    };
-    var i = info[lang] || info.en;
-    document.getElementById('guideModalTitle').textContent = i.title;
-    document.getElementById('guideContent').innerHTML = i.steps.map(function(s,idx){
-      return '<div class="guide-step"><div class="guide-icon" style="font-size:1.2rem;min-width:24px;text-align:center;">'+(idx+1)+'</div><div><div class="guide-step-desc">'+s+'</div></div></div>';
-    }).join('');
-    document.getElementById('guideModal').style.display='flex';
-    return;
-  }
-  _origShowGameGuide(game);
-};
-
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -4465,6 +4018,455 @@ loadFrog=function(room){
     frogSpawnLoop();
   }
 };
+
+
+// ============================================================
+// ===== RACE GAME ============================================
+// ============================================================
+
+// Track definition - oval path as array of {x,y} waypoints (% of canvas)
+var TRACK_WAYPOINTS = [
+  {x:0.50, y:0.12}, // top center
+  {x:0.78, y:0.15},
+  {x:0.90, y:0.30},
+  {x:0.90, y:0.50},
+  {x:0.90, y:0.70},
+  {x:0.78, y:0.85},
+  {x:0.50, y:0.88}, // bottom center
+  {x:0.22, y:0.85},
+  {x:0.10, y:0.70},
+  {x:0.10, y:0.50},
+  {x:0.10, y:0.30},
+  {x:0.22, y:0.15},
+];
+var TRACK_WIDTH = 0.12; // % of canvas width
+var TOTAL_LAPS = 3;
+var PLAYER_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
+var CAR_EMOJIS = ['🏎️','🚗','🚕','🚙','🚓','🚑'];
+
+// Race state (local)
+var raceAnimFrame = null;
+var raceLastUpdate = 0;
+var raceCanvasW = 400;
+var raceCanvasH = 300;
+
+// Get point along track (0-1 = full lap)
+function raceGetTrackPoint(progress) {
+  var pts = TRACK_WAYPOINTS;
+  var n = pts.length;
+  var t = ((progress % 1) + 1) % 1;
+  var idx = Math.floor(t * n);
+  var next = (idx + 1) % n;
+  var frac = (t * n) - idx;
+  return {
+    x: pts[idx].x + (pts[next].x - pts[idx].x) * frac,
+    y: pts[idx].y + (pts[next].y - pts[idx].y) * frac
+  };
+}
+
+function raceGetAngle(progress) {
+  var p1 = raceGetTrackPoint(progress);
+  var p2 = raceGetTrackPoint(progress + 0.01);
+  return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+}
+
+function initRace() {
+  var players = Object.keys(scores);
+  var racePlayers = {};
+  players.forEach(function(id, i) {
+    racePlayers[id] = {
+      name: (scores[id]||{name:'?'}).name,
+      color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+      car: CAR_EMOJIS[i % CAR_EMOJIS.length],
+      progress: i * 0.02, // stagger start
+      speed: 0,
+      lap: 0,
+      finished: false,
+      finishTime: 0,
+      score: 0
+    };
+  });
+  db.ref('rooms/'+roomCode).update({
+    status: 'race',
+    racePlayers: racePlayers,
+    raceState: 'countdown',
+    raceStart: Date.now() + 4000, // 4s countdown
+    raceLaps: TOTAL_LAPS,
+    chat: null
+  });
+  systemMsg('🏎️ Race started!');
+}
+
+function loadRace(room) {
+  if(!room.racePlayers) return;
+  showScreen('race');
+  document.getElementById('raceCode').textContent = roomCode;
+  
+  // Setup canvas
+  var canvas = document.getElementById('raceCanvas');
+  raceCanvasW = Math.min(500, window.innerWidth - 24);
+  raceCanvasH = Math.round(raceCanvasW * 0.7);
+  canvas.width = raceCanvasW;
+  canvas.height = raceCanvasH;
+  canvas.style.height = raceCanvasH + 'px';
+  
+  // Show/hide countdown
+  var cdEl = document.getElementById('raceCountdown');
+  var finEl = document.getElementById('raceFinished');
+  var gasBtn = document.getElementById('raceGasBtn');
+  
+  if(room.raceState === 'countdown') {
+    cdEl.style.display = 'flex';
+    finEl.style.display = 'none';
+    gasBtn.disabled = true;
+    gasBtn.style.opacity = '0.5';
+  } else if(room.raceState === 'racing') {
+    cdEl.style.display = 'none';
+    finEl.style.display = 'none';
+    gasBtn.disabled = false;
+    gasBtn.style.opacity = '1';
+  } else if(room.raceState === 'finished') {
+    cdEl.style.display = 'none';
+    finEl.style.display = 'flex';
+    gasBtn.disabled = true;
+    gasBtn.style.opacity = '0.5';
+    showRaceResults(room);
+  }
+  
+  // Update lap/position display
+  var myData = room.racePlayers[myId] || {};
+  var lap = myData.lap || 0;
+  document.getElementById('raceLapInfo').textContent = 'Lap ' + Math.min(lap+1, TOTAL_LAPS) + '/' + TOTAL_LAPS;
+  
+  // Position
+  var sorted = Object.entries(room.racePlayers).sort(function(a,b) {
+    if(b[1].lap !== a[1].lap) return b[1].lap - a[1].lap;
+    return b[1].progress - a[1].progress;
+  });
+  var myPos = sorted.findIndex(function(e){return e[0]===myId;}) + 1;
+  document.getElementById('raceMyPos').textContent = myPos + '/' + sorted.length;
+  
+  // Position badges
+  var posDiv = document.getElementById('racePositions');
+  if(posDiv) {
+    var medals = ['🥇','🥈','🥉'];
+    posDiv.innerHTML = sorted.map(function(e, i) {
+      var p = e[1];
+      return '<div class="race-pos-badge" style="background:'+p.color+'22;border:1px solid '+p.color+';color:'+p.color+'">'+
+        (medals[i]||('#'+(i+1)))+' '+p.name+
+      '</div>';
+    }).join('');
+  }
+  
+  // Host controls
+  renderHostControls('raceHostControls',
+    isHost ? '<button class="host-ctrl-btn primary" onclick="restartRace()">🔄 New Race</button>' : '');
+  
+  // Start animation loop
+  if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+  raceLoop(room);
+}
+
+function raceLoop(initialRoom) {
+  var lastRoom = initialRoom;
+  
+  function tick() {
+    var now = Date.now();
+    
+    // Countdown logic
+    if(lastRoom.raceState === 'countdown') {
+      var remaining = Math.ceil((lastRoom.raceStart - now) / 1000);
+      var cdEl = document.getElementById('raceCountdownNum');
+      if(cdEl) {
+        if(remaining > 0) {
+          cdEl.textContent = remaining;
+        } else {
+          cdEl.textContent = 'GO! 🏁';
+          // Enable gas after countdown
+          var gb = document.getElementById('raceGasBtn');
+          if(gb) { gb.disabled = false; gb.style.opacity = '1'; }
+        }
+      }
+    }
+    
+    // Timer
+    if(lastRoom.raceState === 'racing' && lastRoom.raceStart) {
+      var elapsed = Math.floor((now - lastRoom.raceStart) / 1000);
+      var mins = Math.floor(elapsed / 60);
+      var secs = elapsed % 60;
+      var timerEl = document.getElementById('raceTimer');
+      if(timerEl) timerEl.textContent = mins + ':' + ('0'+secs).slice(-2);
+    }
+    
+    // Draw
+    drawRaceTrack(lastRoom);
+    
+    if(lastRoom.raceState !== 'finished') {
+      raceAnimFrame = requestAnimationFrame(tick);
+    }
+  }
+  
+  // Listen for room updates
+  db.ref('rooms/'+roomCode).on('value', function(snap) {
+    if(!snap.exists()) return;
+    var room = snap.val();
+    if(room.status !== 'race') {
+      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+      db.ref('rooms/'+roomCode).off('value');
+      return;
+    }
+    lastRoom = room;
+    
+    // Check state changes
+    if(room.raceState === 'finished') {
+      if(raceAnimFrame) cancelAnimationFrame(raceAnimFrame);
+      showRaceResults(room);
+    }
+  });
+  
+  tick();
+}
+
+function drawRaceTrack(room) {
+  var canvas = document.getElementById('raceCanvas');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W = raceCanvasW, H = raceCanvasH;
+  
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+  
+  // Background
+  ctx.fillStyle = '#0F1A0F';
+  ctx.fillRect(0, 0, W, H);
+  
+  // Draw track (outer path)
+  var trackW = TRACK_WIDTH * W;
+  
+  // Draw track surface
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = trackW;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  var pts = TRACK_WAYPOINTS;
+  var p0 = raceGetTrackPoint(0);
+  ctx.moveTo(p0.x * W, p0.y * H);
+  for(var i = 1; i <= pts.length; i++) {
+    var p = raceGetTrackPoint(i / pts.length);
+    ctx.lineTo(p.x * W, p.y * H);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  
+  // Track center line (dashed)
+  ctx.strokeStyle = '#FFD70033';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 15]);
+  ctx.beginPath();
+  var pc0 = raceGetTrackPoint(0);
+  ctx.moveTo(pc0.x * W, pc0.y * H);
+  for(var j = 1; j <= pts.length * 2; j++) {
+    var pc = raceGetTrackPoint(j / (pts.length * 2));
+    ctx.lineTo(pc.x * W, pc.y * H);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  
+  // Start/Finish line
+  var sfPt = raceGetTrackPoint(0);
+  var sfAngle = raceGetAngle(0) + Math.PI/2;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(
+    sfPt.x * W - Math.cos(sfAngle) * trackW/2,
+    sfPt.y * H - Math.sin(sfAngle) * trackW/2
+  );
+  ctx.lineTo(
+    sfPt.x * W + Math.cos(sfAngle) * trackW/2,
+    sfPt.y * H + Math.sin(sfAngle) * trackW/2
+  );
+  ctx.stroke();
+  
+  // Draw cars
+  var racePlayers = room.racePlayers || {};
+  Object.entries(racePlayers).forEach(function(entry) {
+    var pid = entry[0], p = entry[1];
+    var pt = raceGetTrackPoint(p.progress % 1);
+    var angle = raceGetAngle(p.progress % 1);
+    var x = pt.x * W, y = pt.y * H;
+    var isMe = pid === myId;
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    // Car shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(-14, -7, 28, 14);
+    
+    // Car body
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.roundRect(-12, -6, 24, 12, 4);
+    ctx.fill();
+    
+    // Windshield
+    ctx.fillStyle = 'rgba(200,230,255,0.6)';
+    ctx.fillRect(-2, -5, 8, 10);
+    
+    // Wheels
+    ctx.fillStyle = '#222';
+    [[-10,-7],[-10,7],[8,-7],[8,7]].forEach(function(w) {
+      ctx.fillRect(w[0]-3, w[1]-2, 6, 4);
+    });
+    
+    // My car indicator (glow)
+    if(isMe) {
+      ctx.strokeStyle = '#FFF';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-14, -8, 28, 16, 5);
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+    
+    // Name label
+    ctx.fillStyle = isMe ? '#FFF' : p.color;
+    ctx.font = (isMe ? 'bold ' : '') + '10px Heebo, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name.slice(0,8), x, y - 14);
+  });
+}
+
+window.raceGas = async function() {
+  if(raceLastUpdate && Date.now() - raceLastUpdate < 50) return; // throttle
+  raceLastUpdate = Date.now();
+  
+  var snap = await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists()) return;
+  var room = snap.val();
+  
+  if(room.raceState === 'countdown') {
+    var now = Date.now();
+    if(now < room.raceStart) return; // not started yet
+  }
+  if(room.raceState === 'finished') return;
+  
+  var myData = room.racePlayers && room.racePlayers[myId];
+  if(!myData || myData.finished) return;
+  
+  // If countdown done, switch to racing
+  if(room.raceState === 'countdown' && Date.now() >= room.raceStart) {
+    await db.ref('rooms/'+roomCode+'/raceState').set('racing');
+  }
+  
+  // Accelerate - each tap moves forward
+  var boost = 0.004 + Math.random() * 0.002; // slight randomness
+  var newProgress = (myData.progress || 0) + boost;
+  var newLap = myData.lap || 0;
+  
+  // Check lap completion
+  if(Math.floor(newProgress) > Math.floor(myData.progress || 0)) {
+    newLap = newLap + 1;
+    if(newLap >= TOTAL_LAPS) {
+      // Finished!
+      var finishTime = Date.now() - (room.raceStart || Date.now());
+      var pts = Math.max(100, 1000 - Object.values(room.racePlayers||{}).filter(function(p){return p.finished;}).length * 200);
+      await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
+        progress: newProgress, lap: TOTAL_LAPS,
+        finished: true, finishTime: finishTime, score: pts
+      });
+      playSound('correct');
+      // Check if all finished
+      if(isHost) setTimeout(checkRaceEnd, 1000);
+      return;
+    }
+    playSound('start');
+  }
+  
+  await db.ref('rooms/'+roomCode+'/racePlayers/'+myId).update({
+    progress: newProgress, lap: newLap
+  });
+};
+
+async function checkRaceEnd() {
+  var snap = await db.ref('rooms/'+roomCode).once('value');
+  if(!snap.exists()) return;
+  var room = snap.val();
+  var players = Object.values(room.racePlayers||{});
+  var allDone = players.every(function(p){return p.finished;});
+  var anyDone = players.some(function(p){return p.finished;});
+  // End if all done OR if first finisher has been done for 30s
+  if(allDone || (anyDone && players.filter(function(p){return p.finished;}).length === players.length - 1)) {
+    var fs = {};
+    Object.entries(room.racePlayers||{}).forEach(function(e){ fs[e[0]] = e[1].score || 0; });
+    await db.ref('rooms/'+roomCode).update({raceState:'finished', status:'results', finalScores: fs});
+  }
+}
+
+function showRaceResults(room) {
+  var finEl = document.getElementById('raceFinished');
+  var winnerEl = document.getElementById('raceWinnerText');
+  var resultsList = document.getElementById('raceResultsList');
+  if(!finEl) return;
+  finEl.style.display = 'flex';
+  var sorted = Object.entries(room.racePlayers||{}).sort(function(a,b){
+    if(a[1].finished && b[1].finished) return a[1].finishTime - b[1].finishTime;
+    if(a[1].finished) return -1;
+    if(b[1].finished) return 1;
+    return b[1].progress - a[1].progress;
+  });
+  var medals = ['🥇','🥈','🥉'];
+  if(winnerEl && sorted[0]) winnerEl.textContent = medals[0]+' '+(sorted[0][1].name||'?')+' wins!';
+  if(resultsList) {
+    resultsList.innerHTML = sorted.map(function(e,i){
+      var p = e[1];
+      var t = p.finishTime ? Math.floor(p.finishTime/1000)+'s' : 'DNF';
+      return (medals[i]||'#'+(i+1))+' '+p.name+' — '+t;
+    }).join('<br>');
+  }
+}
+
+window.restartRace = function() {
+  if(!isHost) return;
+  db.ref('rooms/'+roomCode).update({status:'lobby'});
+};
+
+// Add race guide
+var _origShowGameGuide = showGameGuide;
+showGameGuide = function(game) {
+  if(game === 'race') {
+    var info = {
+      en: {title:'🏎️ Race!', steps:[
+        'Everyone sees the same oval track',
+        'Press GAS as fast as you can to move forward!',
+        'Complete '+TOTAL_LAPS+' laps before everyone else',
+        'First to cross the finish line wins!',
+        'Tap faster = go faster!'
+      ]},
+      he: {title:'🏎️ מירוץ!', steps:[
+        'כולם רואים את אותו מסלול',
+        'לחץ גז כמה שיותר מהר כדי להתקדם!',
+        'השלם '+TOTAL_LAPS+' סיבובים לפני כולם',
+        'הראשון לחצות את קו הסיום מנצח!',
+        'לחיצות מהירות יותר = נסיעה מהירה יותר!'
+      ]}
+    };
+    var i = info[lang] || info.en;
+    document.getElementById('guideModalTitle').textContent = i.title;
+    document.getElementById('guideContent').innerHTML = i.steps.map(function(s,idx){
+      return '<div class="guide-step"><div class="guide-icon" style="font-size:1.2rem;min-width:24px;text-align:center;">'+(idx+1)+'</div><div><div class="guide-step-desc">'+s+'</div></div></div>';
+    }).join('');
+    document.getElementById('guideModal').style.display='flex';
+    return;
+  }
+  _origShowGameGuide(game);
+};
+
 </script>
 
 <!-- FLOATING SETTINGS (visible on all screens) -->
