@@ -4151,12 +4151,40 @@ function loadRace(room) {
     setInterval(function(){
       if(Date.now() < myBoostUntil) {
         gasBtn.style.background = 'linear-gradient(135deg,#FF6600,#FFD700)';
+        gasBtn.style.boxShadow = '0 4px 0 #994400, 0 0 20px #FF660088';
         gasBtn.textContent = '⚡ BOOST!';
+      } else if(Date.now() < mySlowUntil) {
+        gasBtn.style.background = 'linear-gradient(135deg,#555,#777)';
+        gasBtn.style.boxShadow = '0 4px 0 #333';
+        gasBtn.textContent = '🛢️ SLIPPING...';
       } else {
         gasBtn.style.background = 'linear-gradient(135deg,#CC3333,#FF5555)';
+        gasBtn.style.boxShadow = '0 4px 0 #881111';
         gasBtn.textContent = '🔥 GAS!';
       }
     }, 100);
+    
+    // Idle engine hum
+    try {
+      var actx2 = new (window.AudioContext||window.webkitAudioContext)();
+      window._raceAudioCtx = actx2;
+      var idleOsc = actx2.createOscillator();
+      var idleGain = actx2.createGain();
+      idleOsc.type = 'sawtooth';
+      idleOsc.frequency.value = 55;
+      idleGain.gain.value = 0.02;
+      idleOsc.connect(idleGain);
+      idleGain.connect(actx2.destination);
+      idleOsc.start();
+      window._raceIdleOsc = idleOsc;
+      window._raceIdleGain = idleGain;
+      // Slowly oscillate idle
+      setInterval(function(){
+        if(window._raceIdleOsc) {
+          idleOsc.frequency.value = 50 + Math.sin(Date.now()/800)*8;
+        }
+      }, 50);
+    } catch(e){}
   } else if(room.raceState === 'finished') {
     cdEl.style.display = 'none';
     finEl.style.display = 'flex';
@@ -4499,20 +4527,79 @@ function drawRaceTrack(room) {
 window.raceGas = async function() {
   if(raceLastUpdate && Date.now() - raceLastUpdate < 60) return;
   raceLastUpdate = Date.now();
-  // Engine rev sound (subtle)
+  // Racing engine sound - layered oscillators for real engine feel
   try {
-    var ctx2 = new (window.AudioContext||window.webkitAudioContext)();
-    var osc = ctx2.createOscillator();
-    var gain = ctx2.createGain();
-    osc.connect(gain);
-    gain.connect(ctx2.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(120, ctx2.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(80, ctx2.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.08, ctx2.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.08);
-    osc.start(ctx2.currentTime);
-    osc.stop(ctx2.currentTime + 0.08);
+    var actx = window._raceAudioCtx;
+    if(!actx) {
+      actx = new (window.AudioContext||window.webkitAudioContext)();
+      window._raceAudioCtx = actx;
+    }
+    if(actx.state === 'suspended') actx.resume();
+    var t = actx.currentTime;
+    var isBst = Date.now() < myBoostUntil;
+    var baseFreq = isBst ? 180 : 110;
+
+    // Layer 1: main engine growl (sawtooth)
+    var osc1 = actx.createOscillator();
+    var gain1 = actx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(baseFreq, t);
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 2.2, t + 0.06);
+    osc1.frequency.exponentialRampToValueAtTime(baseFreq * 1.4, t + 0.18);
+    gain1.gain.setValueAtTime(0.18, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+    // Layer 2: harmonic (square wave, lower)
+    var osc2 = actx.createOscillator();
+    var gain2 = actx.createGain();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(baseFreq * 0.5, t);
+    osc2.frequency.exponentialRampToValueAtTime(baseFreq * 1.1, t + 0.08);
+    osc2.frequency.exponentialRampToValueAtTime(baseFreq * 0.7, t + 0.2);
+    gain2.gain.setValueAtTime(0.10, t);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+    // Layer 3: exhaust pop (noise burst on each rev)
+    var bufSize = actx.sampleRate * 0.05;
+    var buffer = actx.createBuffer(1, bufSize, actx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for(var ni=0; ni<bufSize; ni++) data[ni] = (Math.random()*2-1) * Math.exp(-ni/bufSize*8);
+    var noise = actx.createBufferSource();
+    noise.buffer = buffer;
+    var noiseGain = actx.createGain();
+    noiseGain.gain.setValueAtTime(isBst ? 0.15 : 0.07, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+
+    // Distortion for grit
+    var dist = actx.createWaveShaper();
+    var curve = new Float32Array(256);
+    for(var di=0; di<256; di++) {
+      var x = di*2/256-1;
+      curve[di] = (Math.PI+300)*x/(Math.PI+300*Math.abs(x));
+    }
+    dist.curve = curve;
+
+    // Connect
+    osc1.connect(dist); dist.connect(gain1); gain1.connect(actx.destination);
+    osc2.connect(gain2); gain2.connect(actx.destination);
+    noise.connect(noiseGain); noiseGain.connect(actx.destination);
+
+    osc1.start(t); osc1.stop(t+0.25);
+    osc2.start(t); osc2.stop(t+0.25);
+    noise.start(t); noise.stop(t+0.06);
+
+    // Boost: add turbo whistle
+    if(isBst) {
+      var turbo = actx.createOscillator();
+      var turboG = actx.createGain();
+      turbo.type = 'sine';
+      turbo.frequency.setValueAtTime(1200, t);
+      turbo.frequency.linearRampToValueAtTime(800, t+0.3);
+      turboG.gain.setValueAtTime(0.06, t);
+      turboG.gain.exponentialRampToValueAtTime(0.001, t+0.3);
+      turbo.connect(turboG); turboG.connect(actx.destination);
+      turbo.start(t); turbo.stop(t+0.3);
+    }
   } catch(e){}
   
   var snap = await db.ref('rooms/'+roomCode).once('value');
@@ -4702,6 +4789,11 @@ function showRaceResults(room) {
 
 window.restartRace = function() {
   if(!isHost) return;
+  // Stop idle engine
+  try {
+    if(window._raceIdleOsc) { window._raceIdleOsc.stop(); window._raceIdleOsc = null; }
+    if(window._raceAudioCtx) { window._raceAudioCtx.close(); window._raceAudioCtx = null; }
+  } catch(e){}
   db.ref('rooms/'+roomCode).update({status:'lobby'});
 };
 
