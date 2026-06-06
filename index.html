@@ -1500,13 +1500,21 @@ function renderSidebarScores(containerId,scoresObj,answered={}){
 
 function renderHostControls(containerId,extraBtns=''){
   if(!isHost)return;
-  const el=document.getElementById(containerId);
+  var el=document.getElementById(containerId);
   if(!el)return;
-  el.innerHTML=`<div class="host-controls">
-    <div class="host-ctrl-title">🎛 Host</div>
-    ${extraBtns}
-    <button class="host-ctrl-btn danger" onclick="confirmEndGame()">${t('endGame')}</button>
-  </div>`;
+  el.innerHTML=
+    '<div class="host-controls">'+
+    '<div class="host-ctrl-title">🎛 '+t('host')+'</div>'+
+    extraBtns+
+    '<button class="host-ctrl-btn" onclick="showBroadcastInput(''+containerId+'')" style="border-color:var(--blue);color:var(--blue);">📢 '+t('broadcast')+'</button>'+
+    '<div id="broadcastInput_'+containerId+'" style="display:none;margin-top:6px;">'+
+      '<div style="display:flex;gap:5px;">'+
+        '<input id="broadcastText_'+containerId+'" style="flex:1;background:var(--dark3);border:1px solid var(--gold-dim);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.78rem;font-family:Heebo,sans-serif;" placeholder="'+t('broadcastPlaceholder')+'...">'+
+        '<button onclick="sendBroadcast(''+containerId+'')" style="background:var(--blue);border:none;color:#FFF;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:0.9rem;">➤</button>'+
+      '</div>'+
+    '</div>'+
+    '<button class="host-ctrl-btn danger" onclick="confirmEndGame()">'+t('endGame')+'</button>'+
+    '</div>';
 }
 
 window.confirmEndGame=function(){
