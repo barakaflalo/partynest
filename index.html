@@ -4133,7 +4133,10 @@ function loadRace(room) {
   canvas.height = raceCanvasH;
   canvas.style.width = raceCanvasW + 'px';
   canvas.style.height = raceCanvasH + 'px';
-  // Also size the 3D canvas
+  // Set container explicit height
+  var container = document.getElementById('raceTrackContainer');
+  if(container) container.style.height = raceCanvasH + 'px';
+  // Size 3D canvas
   var canvas3d = document.getElementById('raceCanvas3d');
   if(canvas3d) {
     canvas3d.width = raceCanvasW;
@@ -4175,27 +4178,8 @@ function loadRace(room) {
       }
     }, 100);
     
-    // Idle engine hum
-    try {
-      var actx2 = new (window.AudioContext||window.webkitAudioContext)();
-      window._raceAudioCtx = actx2;
-      var idleOsc = actx2.createOscillator();
-      var idleGain = actx2.createGain();
-      idleOsc.type = 'sawtooth';
-      idleOsc.frequency.value = 55;
-      idleGain.gain.value = 0.02;
-      idleOsc.connect(idleGain);
-      idleGain.connect(actx2.destination);
-      idleOsc.start();
-      window._raceIdleOsc = idleOsc;
-      window._raceIdleGain = idleGain;
-      // Slowly oscillate idle
-      setInterval(function(){
-        if(window._raceIdleOsc) {
-          idleOsc.frequency.value = 50 + Math.sin(Date.now()/800)*8;
-        }
-      }, 50);
-    } catch(e){}
+    // Idle engine starts on first GAS press (after user gesture)
+    window._raceIdleStarted = false;
   } else if(room.raceState === 'finished') {
     cdEl.style.display = 'none';
     finEl.style.display = 'flex';
@@ -4291,11 +4275,19 @@ window.setRaceView = function(mode) {
           threeCamera.updateProjectionMatrix();
         }
       }
-      // Get current room and start 3D loop
+      // Start 3D loop
+      if(threeAnimId) cancelAnimationFrame(threeAnimId);
+      threeAnimId = null;
       if(window._lastRaceRoom) {
-        if(threeAnimId) cancelAnimationFrame(threeAnimId);
-        threeAnimId = null;
         updateThreeJS(window._lastRaceRoom);
+      } else {
+        // Fetch room and start
+        db.ref('rooms/'+roomCode).once('value').then(function(snap){
+          if(snap.exists()) {
+            window._lastRaceRoom = snap.val();
+            updateThreeJS(window._lastRaceRoom);
+          }
+        });
       }
     }
   } else {
@@ -5876,9 +5868,9 @@ showGameGuide = function(game) {
     </div>
 
     <!-- TRACK CANVAS -->
-    <div style="position:relative;background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;overflow:hidden;margin-bottom:10px;">
-      <canvas id="raceCanvas" style="display:block;width:100%;"></canvas>
-      <canvas id="raceCanvas3d" style="display:none;position:absolute;top:0;left:0;"></canvas>
+    <div id="raceTrackContainer" style="position:relative;background:var(--dark2);border:2px solid var(--gold-dim);border-radius:14px;overflow:hidden;margin-bottom:10px;">
+      <canvas id="raceCanvas" style="display:block;"></canvas>
+      <canvas id="raceCanvas3d" style="display:none;position:absolute;top:0;left:0;z-index:5;"></canvas>
       <!-- Countdown overlay -->
       <div id="raceCountdown" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
         <div id="raceCountdownNum" style="font-family:'Cinzel',serif;font-size:5rem;color:var(--gold);"></div>
