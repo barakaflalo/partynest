@@ -460,10 +460,6 @@ body.theme-red{--gold:#E05050;--gold-dim:#A02020;--gold-light:#FF8080;}
         <div class="game-opt" onclick="selectGame('whoami')" id="go-whoami"><span class="game-opt-icon">🃏</span><span class="game-opt-name" id="gn-whoami">Who Am I</span></div>
         <div class="game-opt" onclick="selectGame('bomb')" id="go-bomb"><span class="game-opt-icon">💣</span><span class="game-opt-name" id="gn-bomb">Hot Potato</span></div>
         <div class="game-opt" onclick="selectGame('wyr')" id="go-wyr"><span class="game-opt-icon">🔮</span><span class="game-opt-name" id="gn-wyr">Would You Rather</span></div>
-        <div class="game-opt" onclick="selectGame('simon')" id="go-simon"><span class="game-opt-icon">🎵</span><span class="game-opt-name" id="gn-simon">Simon Says</span></div>
-        <div class="game-opt" onclick="selectGame('anagram')" id="go-anagram"><span class="game-opt-icon">🔤</span><span class="game-opt-name" id="gn-anagram">Anagram</span></div>
-        <div class="game-opt" onclick="selectGame('complete')" id="go-complete"><span class="game-opt-icon">✏️</span><span class="game-opt-name" id="gn-complete">Finish It</span></div>
-        <div class="game-opt" onclick="selectGame('number')" id="go-number"><span class="game-opt-icon">🔢</span><span class="game-opt-name" id="gn-number">Guess Number</span></div>
         <div class="game-opt" onclick="selectGame('fastest')" id="go-fastest"><span class="game-opt-icon">⚡</span><span class="game-opt-name" id="gn-fastest">Fastest Finger</span></div>
       </div>
       <!-- ROOM SETTINGS - shown only for trivia -->
@@ -764,7 +760,8 @@ const T = {
     muted:'You are muted',
     noLimit:'No Limit',
     broadcast:'Message All',
-    vote:'Vote',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
+    vote:'Vote',
+    voteAsk:'Ask a question:',whoami:'Who Am I',bomb:'Hot Potato',wyr:'Would You Rather',
     simon:'Simon Says',anagram:'Anagram',complete:'Finish the Sentence',number:'Guess My Number',fastest:'Fastest Finger',
     broadcastPlaceholder:'Type message...',
     settingsTitle:'⚙️ Room Settings',
@@ -816,7 +813,8 @@ const T = {
     muted:'אתה מושתק',
     noLimit:'ללא הגבלה',
     broadcast:'הודעה לכולם',
-    vote:'הצבעה',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
+    vote:'הצבעה',
+    voteAsk:'שאל שאלה:',whoami:'מי אני',bomb:'תפוח אדמה לוהט',wyr:'מה עדיף',
     simon:'סיימון אומר',anagram:'אנגרמות',complete:'השלם המשפט',number:'נחש את המספר',fastest:'מי הכי מהיר',
     broadcastPlaceholder:'כתוב הודעה...',
     settingsTitle:'⚙️ הגדרות חדר',
@@ -868,7 +866,8 @@ const T = {
     muted:'Вы в муте',
     noLimit:'Без лимита',
     broadcast:'Сообщение всем',
-    vote:'Голосование',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
+    vote:'Голосование',
+    voteAsk:'Задай вопрос:',whoami:'Кто я',bomb:'Горячая картошка',wyr:'Что лучше',
     simon:'Саймон говорит',anagram:'Анаграмма',complete:'Закончи фразу',number:'Угадай число',fastest:'Самый быстрый',
     broadcastPlaceholder:'Введи сообщение...',
     settingsTitle:'⚙️ Настройки',
@@ -920,7 +919,8 @@ const T = {
     muted:'Estas silenciado',
     noLimit:'Sin limite',
     broadcast:'Mensaje a todos',
-    vote:'Votacion',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
+    vote:'Votacion',
+    voteAsk:'Haz una pregunta:',whoami:'Quien soy',bomb:'Papa caliente',wyr:'Que prefieres',
     simon:'Simon dice',anagram:'Anagrama',complete:'Termina la frase',number:'Adivina el numero',fastest:'Mas rapido',
     broadcastPlaceholder:'Escribe mensaje...',
     settingsTitle:'⚙️ Configuracion',
@@ -972,7 +972,8 @@ const T = {
     muted:'انت مكتوم',
     noLimit:'بلا حد',
     broadcast:'رسالة للجميع',
-    vote:'تصويت',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
+    vote:'تصويت',
+    voteAsk:'اسأل سؤالاً:',whoami:'من انا',bomb:'البطاطا الساخنة',wyr:'ماذا تفضل',
     simon:'سايمون يقول',anagram:'انغرام',complete:'اكمل الجملة',number:'خمن الرقم',fastest:'الاسرع',
     broadcastPlaceholder:'اكتب رسالة...',
     settingsTitle:'⚙️ اعدادات',
@@ -1099,6 +1100,8 @@ document.addEventListener('DOMContentLoaded', function() {
       roomCode=''; return;
     }
     var room=snap.val();
+    // Restore selectedGame from room
+    if(room.game) selectedGame=room.game;
     // Restore room's lang if different
     if(room.lang&&room.lang!==lang&&!isHost){
       var langBtn2=document.querySelector('.float-lang-btn[data-lang="'+room.lang+'"]');
@@ -1206,6 +1209,14 @@ function applyT(){
   // Guide/About if modals are open
   updateGuideContent();
   updateAboutContent();
+  // Vote ask label
+  _st('txt-voteAsk',t('voteAsk'));
+  // Game header labels
+  _st('txt-vote-h',t('vote'));
+  _st('txt-whoami-h',t('whoami'));
+  _st('txt-bomb-h',t('bomb'));
+  _st('txt-wyr-h',t('wyr'));
+  _st('txt-fastest-h',t('fastest'));
 }
 function _st(id,val){var el=document.getElementById(id);if(el&&val)el.textContent=val;}
 function _ph(id,val){var el=document.getElementById(id);if(el&&val)el.placeholder=val;}
@@ -1527,7 +1538,9 @@ function listenRoom(){
     else if(room.status==='lobby'){
       if(isHost){setupLobbyHost();renderLobbyPlayers(room);}
       else{
-        document.getElementById('playerGameBadge').textContent='🎮 '+t(selectedGame);
+        var gameIcons2={trivia:'🧠',forbidden:'🚫',draw:'🎨',vote:'🗳️',whoami:'🃏',bomb:'💣',wyr:'🔮',simon:'🎵',anagram:'🔤',complete:'✏️',number:'🔢',fastest:'⚡'};
+      var gi2=gameIcons2[selectedGame]||'🎮';
+      document.getElementById('playerGameBadge').textContent=gi2+' '+(t(selectedGame)||selectedGame);
         renderLobbyPlayersP(room);
         showScreen('lobbyPlayer');
       }
@@ -2625,8 +2638,10 @@ function loadVote(room){
   showScreen('vote');
   document.getElementById('voteCode').textContent=roomCode;
   const vs=room.voteState||'host_input';
-  document.getElementById('voteHostArea').style.display=(isHost&&vs==='host_input')?'block':'none';
-  document.getElementById('voteQuestionArea').style.display=(vs==='voting')?'block':'none';
+  var hostArea=document.getElementById('voteHostArea');
+  var qArea=document.getElementById('voteQuestionArea');
+  if(hostArea) hostArea.style.display=(isHost&&vs==='host_input')?'block':'none';
+  if(qArea) qArea.style.display=(vs==='voting')?'block':'none';
   if(vs==='voting'&&room.voteQuestion){
     document.getElementById('voteQText').textContent=room.voteQuestion;
     document.getElementById('voteTextA').textContent=room.voteA||'A';
@@ -2711,24 +2726,18 @@ function loadWhoami(room){
 
 window.whoamiAnswer=function(yes){
   const answer=yes?'✅ Yes!':'❌ No!';
-  systemMsg(answer);
+  db.ref('rooms/'+roomCode+'/chat').push({name:myName,text:answer,ts:Date.now()});
 };
 
 window.nextWhoamiTurn=function(){
-  db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(s){
-    var players=Object.keys(s.val()||{});
-    var cur=players.indexOf(db.ref('rooms/'+roomCode+'/whoamiCurrent').toString());
-    var next=players[(cur+1)%players.length];
+  db.ref('rooms/'+roomCode).once('value').then(function(snap){
+    if(!snap.exists())return;
+    var room=snap.val();
+    var players=Object.keys(room.whoamiPlayers||room.players||{});
+    var cur=room.whoamiCurrent||players[0];
+    var idx=players.indexOf(cur);
+    var next=players[(idx+1)%players.length];
     db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
-  });
-  db.ref('rooms/'+roomCode+'/whoamiCurrent').once('value').then(function(s){
-    var cur=s.val();
-    db.ref('rooms/'+roomCode+'/whoamiPlayers').once('value').then(function(sp){
-      var players=Object.keys(sp.val()||{});
-      var idx=players.indexOf(cur);
-      var next=players[(idx+1)%players.length];
-      db.ref('rooms/'+roomCode+'/whoamiCurrent').set(next);
-    });
   });
 };
 
