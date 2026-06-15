@@ -5272,10 +5272,11 @@ function drGameLoop(initialRoom) {
       var remaining = Math.ceil((lastRoom.drStart - now) / 1000);
       var cdEl = document.getElementById('drCountdownNum');
       var cdDiv = document.getElementById('drCountdown');
-      if(cdDiv) cdDiv.style.display = 'flex';
+      if(cdDiv && remaining > 0) cdDiv.style.display = 'flex';
       if(cdEl) cdEl.textContent = remaining > 0 ? remaining : 'GO!';
       if(remaining <= 0 && cdDiv) {
-        setTimeout(function(){ if(cdDiv) cdDiv.style.display = 'none'; }, 800);
+        setTimeout(function(){ if(cdDiv) cdDiv.style.display = 'none'; }, 1200);
+        if(cdDiv) cdDiv.style.display = 'flex';
       }
     }
     
@@ -6241,11 +6242,11 @@ window.restartDeathRace = function() {
         <canvas id="drMinimap" width="90" height="70" style="background:rgba(0,0,0,0.7);border:1px solid rgba(201,168,76,0.5);border-radius:6px;"></canvas>
       </div>
       <!-- Countdown -->
-      <div id="drCountdown" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+      <div id="drCountdown" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:20;align-items:center;justify-content:center;flex-direction:column;">
         <div id="drCountdownNum" style="font-family:Cinzel,serif;font-size:4rem;color:#C9A84C;text-shadow:0 0 20px #C9A84C;"></div>
       </div>
       <!-- Finished -->
-      <div id="drFinished" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.9);z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
+      <div id="drFinished" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,0.9);z-index:20;align-items:center;justify-content:center;flex-direction:column;gap:8px;">
         <div style="font-size:2rem;">🏁</div>
         <div id="drWinnerText" style="font-family:Cinzel,serif;font-size:1.2rem;color:#C9A84C;"></div>
         <div id="drResultsList" style="font-size:0.8rem;color:#aaa;text-align:center;"></div>
