@@ -5096,7 +5096,7 @@ showGameGuide = function(game) {
 // ============================================================
 // ===== DEATH RACE ============================================
 // ============================================================
-var DR_ROAD_W = 0.92; // road width as fraction of canvas
+var DR_ROAD_W = 1.0; // road width as fraction of canvas
 var DR_LANES = 5; // number of lanes
 var DR_LAPS = 3;
 var DR_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
@@ -5140,7 +5140,7 @@ function initDeathRace() {
   var trackItems = [];
   for(var i = 0; i < 25; i++) {
     var prog = 0.04 + (i / 25) * 0.92;
-    var lx = (Math.random() - 0.5) * 1.4; // spread across full road
+    var lx = (Math.random() - 0.5) * 3.5; // spread across full wide road
     if(i % 4 === 0) {
       trackItems.push({type:'powerup', subtype: DR_POWERUP_TYPES[Math.floor(Math.random()*DR_POWERUP_TYPES.length)], progress: prog, laneX: lx, id: 'pu'+i});
     } else {
@@ -5233,10 +5233,20 @@ function setupDRJoystick() {
 function setupDRFire() {
   var btn = document.getElementById('drFireBtn');
   if(!btn) return;
-  btn.addEventListener('touchstart', function(e){e.preventDefault(); drFiring=true; btn.style.background='rgba(255,80,0,0.5)';}, {passive:false});
-  btn.addEventListener('touchend', function(){drFiring=false; btn.style.background='rgba(255,50,0,0.25)';});
-  btn.addEventListener('mousedown', function(){drFiring=true; btn.style.background='rgba(255,80,0,0.5)';});
-  btn.addEventListener('mouseup', function(){drFiring=false; btn.style.background='rgba(255,50,0,0.25)';});
+  function fireStart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if(!drMyWeapon) {
+      toast('❌ No weapon!','red',800);
+      return;
+    }
+    drFiring = true;
+    btn.style.background = 'rgba(255,80,0,0.5)';
+    // Auto-reset after short delay
+    setTimeout(function(){ drFiring=false; btn.style.background='rgba(255,50,0,0.25)'; }, 300);
+  }
+  btn.addEventListener('touchstart', fireStart, {passive:false});
+  btn.addEventListener('mousedown', fireStart);
 }
 
 // ---- GAME LOOP ----
@@ -5314,8 +5324,8 @@ function updateDRLocal(dt, room) {
   drMyShield = (myData.shieldUntil && now < myData.shieldUntil) ? 1 : 0;
   
   // Steering
-  drMyLane += drJoyX * dt * 4.0;
-  drMyLane = Math.max(-1.2, Math.min(1.2, drMyLane));
+  drMyLane += drJoyX * dt * 8.0;
+  drMyLane = Math.max(-2.5, Math.min(2.5, drMyLane));
   // Auto-center slowly when not steering
   if(!drJoyActive) drMyLane *= 0.97;
   
@@ -5346,7 +5356,7 @@ function updateDRLocal(dt, room) {
     var relDist = Math.abs((newProgress % 1) - item.progress);
     if(relDist > 0.5) relDist = 1 - relDist;
     var laneDist = Math.abs(drMyLane - item.laneX);
-    if(relDist < 0.015 && laneDist < 0.22) {
+    if(relDist < 0.015 && laneDist < 0.35) {
       if(item.type === 'obstacle') {
         if(!drMyShield) {
           drMySpeed = Math.max(0, drMySpeed - 0.5);
@@ -5375,31 +5385,36 @@ function updateDRLocal(dt, room) {
         }
         // Respawn item at new position
         db.ref('rooms/'+roomCode+'/drItems/'+idx+'/progress').set(Math.random()*0.85 + 0.05);
-        db.ref('rooms/'+roomCode+'/drItems/'+idx+'/laneX').set((Math.random()-0.5)*1.4);
+        db.ref('rooms/'+roomCode+'/drItems/'+idx+'/laneX').set((Math.random()-0.5)*3.5);
       }
     }
   });
   
-  // Fire weapon
-  if(drFiring && drMyWeapon === 'missile') {
+  // Fire weapon (only once per press)
+  if(drFiring && drMyWeapon) {
+    var usedWeapon = drMyWeapon;
     drMyWeapon = null;
-    // Find nearest player ahead
-    var nearest = null, nearDist = 999;
-    Object.entries(room.drPlayers||{}).forEach(function(e) {
-      if(e[0] === myId || e[1].finished) return;
-      var dist = e[1].progress - newProgress;
-      if(dist > 0 && dist < nearDist) { nearest = e[0]; nearDist = dist; }
-    });
-    if(nearest) {
-      db.ref('rooms/'+roomCode+'/drPlayers/'+nearest+'/stunUntil').set(now + 2000);
-      toast('🚀 HIT!','red',1000);
+    drFiring = false;
+    if(usedWeapon === 'missile') {
+      var nearest = null, nearDist = 999;
+      Object.entries(room.drPlayers||{}).forEach(function(e) {
+        if(e[0] === myId || e[1].finished) return;
+        var dist = e[1].progress - newProgress;
+        if(dist > 0 && dist < nearDist) { nearest = e[0]; nearDist = dist; }
+      });
+      if(nearest) {
+        db.ref('rooms/'+roomCode+'/drPlayers/'+nearest+'/stunUntil').set(now + 2000);
+        toast('🚀 HIT '+((room.drPlayers[nearest]||{}).name||'')+'!','red',1500);
+        for(var fi=0;fi<12;fi++) {
+          drParticles.push({x:drCanvasW/2,y:drCanvasH*0.4,vx:(Math.random()-0.5)*8,vy:-Math.random()*6,r:4,color:'#FF6600',life:0.8});
+        }
+      } else {
+        toast('🚀 MISS!','orange',1000);
+      }
+    } else if(usedWeapon === 'speed') {
+      drMySpeed = 2.5;
+      toast('💨 SPEED BOOST!','cyan',1000);
     }
-    drFiring = false;
-  }
-  if(drFiring && drMyWeapon === 'speed') {
-    drMyWeapon = null;
-    drMySpeed = 2;
-    drFiring = false;
   }
   
   // Update local cache
@@ -5439,7 +5454,7 @@ function drawDeathRace(room) {
   
   var myData = room.drPlayers && room.drPlayers[myId];
   var camProgress = myData ? myData.progress : 0;
-  var camLaneX = drMyLane * 0.5; // camera follows but less than car
+  var camLaneX = drMyLane * 0.25; // camera follows gently
   
   // === SKY ===
   var skyG = ctx.createLinearGradient(0,0,0,H*0.4);
@@ -5475,7 +5490,7 @@ function drawDeathRace(room) {
   // === ROAD with perspective ===
   var numSegs = 60;
   var camFOV = 0.015;
-  var roadW0 = W * 0.12;
+  var roadW0 = W * 0.25;
   var roadW1 = W * DR_ROAD_W;
   
   for(var seg = numSegs; seg >= 0; seg--) {
@@ -5484,7 +5499,7 @@ function drawDeathRace(room) {
     var segY = hY + (1-t)*(H-hY);
     var nextY = hY + (1-(seg-1)/numSegs)*(H-hY);
     var segW = roadW0 + (roadW1-roadW0)*(1-t);
-    var segX = W/2 - camLaneX * segW * 0.3;
+    var segX = W/2 - camLaneX * segW * 0.15;
     
     // Road surface
     var stripIdx = Math.floor((camProgress*200+seg)*2)%2;
@@ -5550,7 +5565,7 @@ function drawDeathRace(room) {
       var dist = Math.abs(segProgress - item.progress);
       if(dist>0.5) dist=1-dist;
       if(dist<0.008 && seg>3) {
-        var itemX = segX + item.laneX * segW * 0.35;
+        var itemX = segX + item.laneX * segW * 0.25;
         var itemS = Math.max(4,(1-t)*28);
         if(item.type==='powerup') {
           var pulse = 0.7+0.3*Math.sin(now/200);
@@ -5587,8 +5602,8 @@ function drawDeathRace(room) {
       var carY2=hY+(1-t2)*(H-hY);
       var carW2=Math.max(6,(1-t2)*60);
       var carH2=Math.max(4,(1-t2)*40);
-      var carXoff=(p.laneX||0)*segW*0.4*(1-t2);
-      var carX2=W/2+carXoff - camLaneX*segW*0.2*(1-t2);
+      var carXoff=(p.laneX||0)*segW*0.35;
+      var carX2=W/2+carXoff - camLaneX*segW*0.1;
       
       // Stun flash
       if(p.stunUntil&&now<p.stunUntil&&Math.floor(now/100)%2===0) {
@@ -5620,7 +5635,7 @@ function drawDeathRace(room) {
   
   // === MY CAR ===
   var myW=70,myH=45;
-  var myX=W/2, myY=H-35;
+  var myX=W/2 + drMyLane * W * 0.15, myY=H-35;
   var isStunned = myData && myData.stunUntil && now < myData.stunUntil;
   
   if(isStunned && Math.floor(now/100)%2===0) ctx.globalAlpha=0.5;
@@ -6266,8 +6281,9 @@ window.restartDeathRace = function() {
         <div style="font-size:0.6rem;color:#888;">KM/H</div>
       </div>
       <!-- Fire button -->
-      <div id="drFireBtn" style="width:80px;height:80px;border-radius:50%;background:rgba(255,50,0,0.25);border:3px solid rgba(255,80,0,0.7);color:#fff;font-size:0.7rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;">
-        🔥 FIRE
+      <div id="drFireBtn" style="width:80px;height:80px;border-radius:50%;background:rgba(255,50,0,0.25);border:3px solid rgba(255,80,0,0.7);color:#fff;font-size:0.75rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;flex-direction:column;gap:2px;">
+        <span style="font-size:1.2rem;">🔥</span>
+        <span id="drFireLabel">FIRE</span>
       </div>
     </div>
   </div>
