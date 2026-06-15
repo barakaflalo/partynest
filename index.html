@@ -5096,7 +5096,7 @@ showGameGuide = function(game) {
 // ============================================================
 // ===== DEATH RACE ============================================
 // ============================================================
-var DR_ROAD_W = 1.0; // road width as fraction of canvas
+var DR_ROAD_W = 2.5; // road width as fraction of canvas
 var DR_LANES = 5; // number of lanes
 var DR_LAPS = 3;
 var DR_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
@@ -5196,9 +5196,9 @@ function setupDRJoystick() {
   
   // Left button
   function leftStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = -1; drJoyActive = true;
-    leftBtn.style.background = 'rgba(201,168,76,0.4)'; }
+    leftBtn.style.background = 'rgba(255,80,80,0.4)'; }
   function leftEnd(e) { if(drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
-    leftBtn.style.background = 'rgba(201,168,76,0.15)'; }
+    leftBtn.style.background = 'rgba(200,50,50,0.2)'; }
   leftBtn.addEventListener('touchstart', leftStart, {passive:false});
   leftBtn.addEventListener('touchend', leftEnd);
   leftBtn.addEventListener('touchcancel', leftEnd);
@@ -5208,9 +5208,9 @@ function setupDRJoystick() {
   
   // Right button
   function rightStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = 1; drJoyActive = true;
-    rightBtn.style.background = 'rgba(201,168,76,0.4)'; }
+    rightBtn.style.background = 'rgba(255,80,80,0.4)'; }
   function rightEnd(e) { if(drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
-    rightBtn.style.background = 'rgba(201,168,76,0.15)'; }
+    rightBtn.style.background = 'rgba(200,50,50,0.2)'; }
   rightBtn.addEventListener('touchstart', rightStart, {passive:false});
   rightBtn.addEventListener('touchend', rightEnd);
   rightBtn.addEventListener('touchcancel', rightEnd);
@@ -5455,43 +5455,47 @@ function drawDeathRace(room) {
   
   var myData = room.drPlayers && room.drPlayers[myId];
   var camProgress = myData ? myData.progress : 0;
-  var camLaneX = drMyLane * 0.4; // camera follows car
+  var camLaneX = drMyLane; // camera follows car exactly
   
-  // === SKY ===
+  // === SKY — SUNSET/FIRE THEME ===
   var skyG = ctx.createLinearGradient(0,0,0,H*0.4);
-  skyG.addColorStop(0,'#0A0A1A');
-  skyG.addColorStop(1,'#1A1A3A');
+  skyG.addColorStop(0,'#1A0A2E');
+  skyG.addColorStop(0.5,'#4A1A2E');
+  skyG.addColorStop(1,'#8B3A1A');
   ctx.fillStyle = skyG;
   ctx.fillRect(0,0,W,H*0.4);
   
-  // Stars
-  ctx.fillStyle = '#FFF';
-  for(var si=0;si<35;si++){
-    var sx=(si*137+camProgress*100)%W;
-    var sy=(si*73)%(H*0.35);
-    ctx.fillRect(sx,sy,si%4===0?1.5:0.8,si%4===0?1.5:0.8);
+  // Fire particles in sky
+  ctx.fillStyle = '#FF6600';
+  for(var si=0;si<20;si++){
+    var sx=(si*157+camProgress*150)%W;
+    var sy=(si*83+Math.sin(now/1000+si)*8)%(H*0.35);
+    ctx.globalAlpha = 0.3 + Math.sin(now/500+si)*0.2;
+    ctx.beginPath(); ctx.arc(sx,sy,si%3===0?2:1,0,Math.PI*2); ctx.fill();
   }
+  ctx.globalAlpha = 1;
   
-  // Horizon glow
+  // Horizon — fire glow
   var hY = H*0.38;
-  var hG = ctx.createLinearGradient(0,hY-8,0,hY+15);
-  hG.addColorStop(0,'rgba(255,60,0,0)');
-  hG.addColorStop(0.5,'rgba(255,60,0,0.2)');
-  hG.addColorStop(1,'rgba(255,60,0,0)');
+  var hG = ctx.createLinearGradient(0,hY-15,0,hY+20);
+  hG.addColorStop(0,'rgba(255,80,0,0)');
+  hG.addColorStop(0.4,'rgba(255,120,0,0.6)');
+  hG.addColorStop(0.6,'rgba(255,60,0,0.4)');
+  hG.addColorStop(1,'rgba(255,40,0,0)');
   ctx.fillStyle = hG;
-  ctx.fillRect(0,hY-8,W,23);
+  ctx.fillRect(0,hY-15,W,35);
   
-  // Ground
+  // Ground — dark desert
   var gG = ctx.createLinearGradient(0,hY,0,H);
-  gG.addColorStop(0,'#1A1A0F');
-  gG.addColorStop(1,'#0A0A06');
+  gG.addColorStop(0,'#2A1A0A');
+  gG.addColorStop(1,'#1A0A04');
   ctx.fillStyle = gG;
   ctx.fillRect(0,hY,W,H-hY);
   
   // === ROAD with perspective ===
   var numSegs = 60;
   var camFOV = 0.015;
-  var roadW0 = W * 0.25;
+  var roadW0 = W * 0.5;
   var roadW1 = W * DR_ROAD_W;
   
   for(var seg = numSegs; seg >= 0; seg--) {
@@ -5500,11 +5504,11 @@ function drawDeathRace(room) {
     var segY = hY + (1-t)*(H-hY);
     var nextY = hY + (1-(seg-1)/numSegs)*(H-hY);
     var segW = roadW0 + (roadW1-roadW0)*(1-t);
-    var segX = W/2 - camLaneX * segW * 0.12;
+    var segX = W/2 - camLaneX * segW * 0.06;
     
     // Road surface
     var stripIdx = Math.floor((camProgress*200+seg)*2)%2;
-    ctx.fillStyle = stripIdx===0?'#333':'#3A3A3A';
+    ctx.fillStyle = stripIdx===0?'#2A2A2A':'#333333';
     ctx.fillRect(segX-segW/2, segY, segW, Math.max(1,nextY-segY+1));
     
     // Lane markers
@@ -5517,7 +5521,7 @@ function drawDeathRace(room) {
     }
     
     // Kerbs
-    var kc = Math.floor(seg/3)%2===0?'#CC2222':'#EEEEEE';
+    var kc = Math.floor(seg/3)%2===0?'#FF3300':'#FFCC00';
     var kw = Math.max(2, segW*0.04);
     ctx.fillStyle = kc;
     ctx.fillRect(segX-segW/2-kw, segY, kw, Math.max(1,nextY-segY+1));
@@ -5566,7 +5570,7 @@ function drawDeathRace(room) {
       var dist = Math.abs(segProgress - item.progress);
       if(dist>0.5) dist=1-dist;
       if(dist<0.008 && seg>3) {
-        var itemX = segX + item.laneX * segW * 0.08;
+        var itemX = segX + item.laneX * segW * 0.04;
         var itemS = Math.max(4,(1-t)*28);
         if(item.type==='powerup') {
           var pulse = 0.7+0.3*Math.sin(now/200);
@@ -5603,8 +5607,8 @@ function drawDeathRace(room) {
       var carY2=hY+(1-t2)*(H-hY);
       var carW2=Math.max(6,(1-t2)*60);
       var carH2=Math.max(4,(1-t2)*40);
-      var carXoff=(p.laneX||0)*segW*0.08;
-      var carX2=W/2+carXoff - camLaneX*segW*0.08;
+      var carXoff=((p.laneX||0)-camLaneX)*segW*0.04;
+      var carX2=W/2+carXoff;
       
       // Stun flash
       if(p.stunUntil&&now<p.stunUntil&&Math.floor(now/100)%2===0) {
@@ -5636,7 +5640,7 @@ function drawDeathRace(room) {
   
   // === MY CAR ===
   var myW=70,myH=45;
-  var myX=W/2 + drMyLane * W * 0.08, myY=H-35;
+  var myX=W/2, myY=H-35; // car always centered
   var isStunned = myData && myData.stunUntil && now < myData.stunUntil;
   
   if(isStunned && Math.floor(now/100)%2===0) ctx.globalAlpha=0.5;
@@ -6271,8 +6275,8 @@ window.restartDeathRace = function() {
     <!-- Controls: LEFT / SPEED / FIRE / RIGHT -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;gap:6px;">
       <!-- LEFT button -->
-      <div id="drLeftBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(201,168,76,0.15);border:2px solid rgba(201,168,76,0.5);color:#C9A84C;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;">
-        ◀
+      <div id="drLeftBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(200,50,50,0.2);border:2px solid rgba(255,80,80,0.5);color:#FF6666;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;direction:ltr;">
+        ⬅️
       </div>
       <!-- Center: Speed + Fire -->
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
@@ -6280,13 +6284,13 @@ window.restartDeathRace = function() {
           <div id="drSpeedText" style="font-family:Cinzel,serif;font-size:1.3rem;color:#C9A84C;">0</div>
           <div style="font-size:0.55rem;color:#888;">KM/H</div>
         </div>
-        <div id="drFireBtn" style="width:60px;height:40px;border-radius:10px;background:rgba(255,50,0,0.25);border:2px solid rgba(255,80,0,0.7);color:#fff;font-size:0.65rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;gap:3px;">
+        <div id="drFireBtn" style="width:60px;height:40px;border-radius:10px;background:rgba(255,50,0,0.35);border:2px solid rgba(255,100,0,0.9);color:#fff;font-size:0.65rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;gap:3px;">
           <span>🔥</span><span id="drFireLabel">FIRE</span>
         </div>
       </div>
       <!-- RIGHT button -->
-      <div id="drRightBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(201,168,76,0.15);border:2px solid rgba(201,168,76,0.5);color:#C9A84C;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;">
-        ▶
+      <div id="drRightBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(200,50,50,0.2);border:2px solid rgba(255,80,80,0.5);color:#FF6666;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;direction:ltr;">
+        ➡️
       </div>
     </div>
   </div>
