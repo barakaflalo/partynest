@@ -5098,7 +5098,7 @@ showGameGuide = function(game) {
 // ============================================================
 var DR_ROAD_W = 2.5; // road width as fraction of canvas
 var DR_LANES = 5; // number of lanes
-var DR_LAPS = 3;
+var DR_LAPS = 7;
 var DR_COLORS = ['#E05050','#4A8FD4','#4CAF7A','#C9A84C','#9B59B6','#FF9800'];
 var DR_OBSTACLE_TYPES = ['barrel','cone','oil','ramp'];
 var DR_POWERUP_TYPES = ['boost','shield','missile','speed'];
@@ -5137,6 +5137,22 @@ function initDeathRace() {
       weapon: null
     };
   });
+  // Add AI bot
+  drPlayers['bot_skull'] = {
+    name: '💀 SKULL',
+    color: '#880088',
+    progress: 0,
+    laneX: 0,
+    lap: 0,
+    speed: 0,
+    finished: false,
+    finishTime: 0,
+    score: 0,
+    stunUntil: 0,
+    shieldUntil: 0,
+    weapon: null,
+    isBot: true
+  };
   // Generate obstacles and powerups for the track
   var trackItems = [];
   // Only 8 items per lap - very spread out (every ~12% of track)
@@ -5197,9 +5213,9 @@ function setupDRJoystick() {
   if(!leftBtn || !rightBtn) return;
   
   // Left button
-  function leftStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = -1; drJoyActive = true; console.log('LEFT pressed');
+  function leftStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = 1; drJoyActive = true;
     leftBtn.style.background = 'rgba(255,80,80,0.4)'; }
-  function leftEnd(e) { if(drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
+  function leftEnd(e) { if(drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
     leftBtn.style.background = 'rgba(200,50,50,0.2)'; }
   leftBtn.addEventListener('touchstart', leftStart, {passive:false});
   leftBtn.addEventListener('touchend', leftEnd);
@@ -5209,9 +5225,9 @@ function setupDRJoystick() {
   leftBtn.addEventListener('mouseleave', leftEnd);
   
   // Right button
-  function rightStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = 1; drJoyActive = true; console.log('RIGHT pressed');
+  function rightStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = -1; drJoyActive = true;
     rightBtn.style.background = 'rgba(255,80,80,0.4)'; }
-  function rightEnd(e) { if(drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
+  function rightEnd(e) { if(drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
     rightBtn.style.background = 'rgba(200,50,50,0.2)'; }
   rightBtn.addEventListener('touchstart', rightStart, {passive:false});
   rightBtn.addEventListener('touchend', rightEnd);
@@ -5222,13 +5238,13 @@ function setupDRJoystick() {
   
   // Keyboard support (for PC testing)
   document.addEventListener('keydown', function(e) {
-    if(e.key === 'ArrowLeft') { drJoyX = -1; drJoyActive = true; }
-    if(e.key === 'ArrowRight') { drJoyX = 1; drJoyActive = true; }
+    if(e.key === 'ArrowLeft') { drJoyX = 1; drJoyActive = true; }
+    if(e.key === 'ArrowRight') { drJoyX = -1; drJoyActive = true; }
     if(e.key === ' ') { e.preventDefault(); drFiring = true; }
   });
   document.addEventListener('keyup', function(e) {
-    if(e.key === 'ArrowLeft' && drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
-    if(e.key === 'ArrowRight' && drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
+    if(e.key === 'ArrowLeft' && drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
+    if(e.key === 'ArrowRight' && drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
   });
 }
 
@@ -5320,7 +5336,7 @@ function updateDRLocal(dt, room) {
     drMySpeed *= 0.95; // slow down when stunned
   } else {
     // Auto accelerate
-    drMySpeed = Math.min(1, drMySpeed + dt * 0.5);
+    drMySpeed = Math.min(1, drMySpeed + dt * 0.3);
   }
   
   // Shield
@@ -5333,7 +5349,7 @@ function updateDRLocal(dt, room) {
   if(!drJoyActive) drMyLane *= 0.97;
   
   // Progress
-  var speedMul = drMySpeed * 0.004;
+  var speedMul = drMySpeed * 0.002;
   var newProgress = (myData.progress || 0) + speedMul;
   var newLap = myData.lap || 0;
   
@@ -5447,6 +5463,71 @@ function updateDRLocal(dt, room) {
   
   // Decay speed
   drMySpeed = Math.max(0, drMySpeed - dt * 0.15);
+  
+  // ---- BOT AI (runs on host only) ----
+  if(isHost && room.drPlayers && room.drPlayers['bot_skull']) {
+    var bot = room.drPlayers['bot_skull'];
+    if(!bot.finished) {
+      var botNow = Date.now();
+      var botStunned = bot.stunUntil && botNow < bot.stunUntil;
+      var botSpeed = botStunned ? 0.0008 : 0.0018;
+      var botProgress = (bot.progress || 0) + botSpeed;
+      var botLap = bot.lap || 0;
+      
+      // Bot steering - weave toward nearest player
+      var botLane = bot.laneX || 0;
+      var nearestPlayer = null, nearDist2 = 999;
+      Object.entries(room.drPlayers||{}).forEach(function(e2) {
+        if(e2[0] === 'bot_skull' || e2[1].finished) return;
+        var d2 = Math.abs(e2[1].progress - botProgress);
+        if(d2 < nearDist2) { nearestPlayer = e2[1]; nearDist2 = d2; }
+      });
+      if(nearestPlayer) {
+        var targetLane = nearestPlayer.laneX || 0;
+        botLane += (targetLane - botLane) * dt * 2;
+      }
+      // Add some random weaving
+      botLane += Math.sin(botNow / 1000) * dt * 3;
+      botLane = Math.max(-5, Math.min(5, botLane));
+      
+      // Bot shoots at nearby players
+      if(Math.random() < 0.005 && nearestPlayer && nearDist2 < 0.1) {
+        // Find the player to stun
+        Object.entries(room.drPlayers||{}).forEach(function(e3) {
+          if(e3[0] === 'bot_skull' || e3[1].finished) return;
+          var d3 = Math.abs(e3[1].progress - botProgress);
+          if(d3 < 0.08) {
+            db.ref('rooms/'+roomCode+'/drPlayers/'+e3[0]+'/stunUntil').set(botNow + 1500);
+          }
+        });
+      }
+      
+      // Check bot lap
+      if(Math.floor(botProgress) > Math.floor(bot.progress || 0)) {
+        botLap++;
+        if(botLap >= DR_LAPS) {
+          db.ref('rooms/'+roomCode+'/drPlayers/bot_skull').update({
+            progress: botProgress, lap: DR_LAPS,
+            finished: true, finishTime: botNow - (room.drStart || botNow), score: 50
+          });
+          return;
+        }
+      }
+      
+      // Update bot in Firebase (throttled with main update)
+      if(botNow - drLastFirebase < 50) {
+        db.ref('rooms/'+roomCode+'/drPlayers/bot_skull').update({
+          progress: botProgress, lap: botLap, laneX: botLane, speed: botStunned ? 0.3 : 0.8
+        });
+      }
+      // Update local cache for smooth rendering
+      if(room.drPlayers['bot_skull']) {
+        room.drPlayers['bot_skull'].progress = botProgress;
+        room.drPlayers['bot_skull'].lap = botLap;
+        room.drPlayers['bot_skull'].laneX = botLane;
+      }
+    }
+  }
 }
 
 // ---- DRAW ----
@@ -5731,7 +5812,7 @@ function updateDRHUD(room) {
     else wEl.innerHTML='🔫 <span style="color:#666;">---</span>';
   }
   var spd = document.getElementById('drSpeedText');
-  if(spd) spd.textContent = Math.round(drMySpeed * 200);
+  if(spd) spd.textContent = Math.round(drMySpeed * 120);
   // Positions
   var sorted = Object.entries(room.drPlayers||{}).sort(function(a,b){
     if(b[1].lap!==a[1].lap) return b[1].lap-a[1].lap;
