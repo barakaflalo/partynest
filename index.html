@@ -5140,7 +5140,7 @@ function initDeathRace() {
   var trackItems = [];
   for(var i = 0; i < 25; i++) {
     var prog = 0.04 + (i / 25) * 0.92;
-    var lx = (Math.random() - 0.5) * 3.5; // spread across full wide road
+    var lx = (Math.random() - 0.5) * 10; // spread across huge road
     if(i % 4 === 0) {
       trackItems.push({type:'powerup', subtype: DR_POWERUP_TYPES[Math.floor(Math.random()*DR_POWERUP_TYPES.length)], progress: prog, laneX: lx, id: 'pu'+i});
     } else {
@@ -5188,45 +5188,46 @@ function loadDeathRace(room) {
   drGameLoop(room);
 }
 
-// ---- JOYSTICK ----
+// ---- LEFT/RIGHT BUTTONS ----
 function setupDRJoystick() {
-  var zone = document.getElementById('drJoystickZone');
-  var knob = document.getElementById('drJoystickKnob');
-  if(!zone) return;
-  var startX = 0, startY = 0;
-  function onStart(e) {
-    e.preventDefault();
-    drJoyActive = true;
-    var touch = e.touches ? e.touches[0] : e;
-    var rect = zone.getBoundingClientRect();
-    startX = rect.left + rect.width/2;
-    startY = rect.top + rect.height/2;
-  }
-  function onMove(e) {
-    if(!drJoyActive) return;
-    e.preventDefault();
-    var touch = e.touches ? e.touches[0] : e;
-    var dx = touch.clientX - startX;
-    var dy = touch.clientY - startY;
-    var maxR = 45;
-    var dist = Math.sqrt(dx*dx + dy*dy);
-    if(dist > maxR) { dx = dx/dist*maxR; dy = dy/dist*maxR; }
-    knob.style.left = (30 + dx) + 'px';
-    knob.style.top = (30 + dy) + 'px';
-    drJoyX = dx / maxR; // -1 to 1
-  }
-  function onEnd(e) {
-    drJoyActive = false;
-    drJoyX = 0;
-    knob.style.left = '30px';
-    knob.style.top = '30px';
-  }
-  zone.addEventListener('touchstart', onStart, {passive:false});
-  zone.addEventListener('touchmove', onMove, {passive:false});
-  zone.addEventListener('touchend', onEnd);
-  zone.addEventListener('mousedown', onStart);
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onEnd);
+  var leftBtn = document.getElementById('drLeftBtn');
+  var rightBtn = document.getElementById('drRightBtn');
+  if(!leftBtn || !rightBtn) return;
+  
+  // Left button
+  function leftStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = -1; drJoyActive = true;
+    leftBtn.style.background = 'rgba(201,168,76,0.4)'; }
+  function leftEnd(e) { if(drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
+    leftBtn.style.background = 'rgba(201,168,76,0.15)'; }
+  leftBtn.addEventListener('touchstart', leftStart, {passive:false});
+  leftBtn.addEventListener('touchend', leftEnd);
+  leftBtn.addEventListener('touchcancel', leftEnd);
+  leftBtn.addEventListener('mousedown', leftStart);
+  leftBtn.addEventListener('mouseup', leftEnd);
+  leftBtn.addEventListener('mouseleave', leftEnd);
+  
+  // Right button
+  function rightStart(e) { e.preventDefault(); e.stopPropagation(); drJoyX = 1; drJoyActive = true;
+    rightBtn.style.background = 'rgba(201,168,76,0.4)'; }
+  function rightEnd(e) { if(drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
+    rightBtn.style.background = 'rgba(201,168,76,0.15)'; }
+  rightBtn.addEventListener('touchstart', rightStart, {passive:false});
+  rightBtn.addEventListener('touchend', rightEnd);
+  rightBtn.addEventListener('touchcancel', rightEnd);
+  rightBtn.addEventListener('mousedown', rightStart);
+  rightBtn.addEventListener('mouseup', rightEnd);
+  rightBtn.addEventListener('mouseleave', rightEnd);
+  
+  // Keyboard support (for PC testing)
+  window.addEventListener('keydown', function(e) {
+    if(e.key === 'ArrowLeft') { drJoyX = -1; drJoyActive = true; }
+    if(e.key === 'ArrowRight') { drJoyX = 1; drJoyActive = true; }
+    if(e.key === ' ') drFiring = true;
+  });
+  window.addEventListener('keyup', function(e) {
+    if(e.key === 'ArrowLeft' && drJoyX < 0) { drJoyX = 0; drJoyActive = false; }
+    if(e.key === 'ArrowRight' && drJoyX > 0) { drJoyX = 0; drJoyActive = false; }
+  });
 }
 
 // ---- FIRE BUTTON ----
@@ -5324,8 +5325,8 @@ function updateDRLocal(dt, room) {
   drMyShield = (myData.shieldUntil && now < myData.shieldUntil) ? 1 : 0;
   
   // Steering
-  drMyLane += drJoyX * dt * 8.0;
-  drMyLane = Math.max(-2.5, Math.min(2.5, drMyLane));
+  drMyLane += drJoyX * dt * 12.0;
+  drMyLane = Math.max(-6.0, Math.min(6.0, drMyLane));
   // Auto-center slowly when not steering
   if(!drJoyActive) drMyLane *= 0.97;
   
@@ -5356,7 +5357,7 @@ function updateDRLocal(dt, room) {
     var relDist = Math.abs((newProgress % 1) - item.progress);
     if(relDist > 0.5) relDist = 1 - relDist;
     var laneDist = Math.abs(drMyLane - item.laneX);
-    if(relDist < 0.015 && laneDist < 0.35) {
+    if(relDist < 0.015 && laneDist < 0.6) {
       if(item.type === 'obstacle') {
         if(!drMyShield) {
           drMySpeed = Math.max(0, drMySpeed - 0.5);
@@ -5385,7 +5386,7 @@ function updateDRLocal(dt, room) {
         }
         // Respawn item at new position
         db.ref('rooms/'+roomCode+'/drItems/'+idx+'/progress').set(Math.random()*0.85 + 0.05);
-        db.ref('rooms/'+roomCode+'/drItems/'+idx+'/laneX').set((Math.random()-0.5)*3.5);
+        db.ref('rooms/'+roomCode+'/drItems/'+idx+'/laneX').set((Math.random()-0.5)*10);
       }
     }
   });
@@ -5454,7 +5455,7 @@ function drawDeathRace(room) {
   
   var myData = room.drPlayers && room.drPlayers[myId];
   var camProgress = myData ? myData.progress : 0;
-  var camLaneX = drMyLane * 0.25; // camera follows gently
+  var camLaneX = drMyLane * 0.4; // camera follows car
   
   // === SKY ===
   var skyG = ctx.createLinearGradient(0,0,0,H*0.4);
@@ -5499,7 +5500,7 @@ function drawDeathRace(room) {
     var segY = hY + (1-t)*(H-hY);
     var nextY = hY + (1-(seg-1)/numSegs)*(H-hY);
     var segW = roadW0 + (roadW1-roadW0)*(1-t);
-    var segX = W/2 - camLaneX * segW * 0.15;
+    var segX = W/2 - camLaneX * segW * 0.12;
     
     // Road surface
     var stripIdx = Math.floor((camProgress*200+seg)*2)%2;
@@ -5565,7 +5566,7 @@ function drawDeathRace(room) {
       var dist = Math.abs(segProgress - item.progress);
       if(dist>0.5) dist=1-dist;
       if(dist<0.008 && seg>3) {
-        var itemX = segX + item.laneX * segW * 0.25;
+        var itemX = segX + item.laneX * segW * 0.08;
         var itemS = Math.max(4,(1-t)*28);
         if(item.type==='powerup') {
           var pulse = 0.7+0.3*Math.sin(now/200);
@@ -5602,8 +5603,8 @@ function drawDeathRace(room) {
       var carY2=hY+(1-t2)*(H-hY);
       var carW2=Math.max(6,(1-t2)*60);
       var carH2=Math.max(4,(1-t2)*40);
-      var carXoff=(p.laneX||0)*segW*0.35;
-      var carX2=W/2+carXoff - camLaneX*segW*0.1;
+      var carXoff=(p.laneX||0)*segW*0.08;
+      var carX2=W/2+carXoff - camLaneX*segW*0.08;
       
       // Stun flash
       if(p.stunUntil&&now<p.stunUntil&&Math.floor(now/100)%2===0) {
@@ -5635,7 +5636,7 @@ function drawDeathRace(room) {
   
   // === MY CAR ===
   var myW=70,myH=45;
-  var myX=W/2 + drMyLane * W * 0.15, myY=H-35;
+  var myX=W/2 + drMyLane * W * 0.08, myY=H-35;
   var isStunned = myData && myData.stunUntil && now < myData.stunUntil;
   
   if(isStunned && Math.floor(now/100)%2===0) ctx.globalAlpha=0.5;
@@ -6267,23 +6268,25 @@ window.restartDeathRace = function() {
         <div id="drResultsList" style="font-size:0.8rem;color:#aaa;text-align:center;"></div>
       </div>
     </div>
-    <!-- Controls: Joystick left, Fire button right -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 12px;">
-      <!-- Joystick zone -->
-      <div id="drJoystickZone" style="position:relative;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);border:3px solid rgba(201,168,76,0.4);touch-action:none;">
-        <div id="drJoystickKnob" style="position:absolute;left:30px;top:30px;width:60px;height:60px;border-radius:50%;background:rgba(201,168,76,0.35);border:3px solid rgba(201,168,76,0.7);pointer-events:none;transition:none;"></div>
-        <div style="position:absolute;top:50%;left:4px;transform:translateY(-50%);font-size:1rem;opacity:0.3;pointer-events:none;">◀</div>
-        <div style="position:absolute;top:50%;right:4px;transform:translateY(-50%);font-size:1rem;opacity:0.3;pointer-events:none;">▶</div>
+    <!-- Controls: LEFT / SPEED / FIRE / RIGHT -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;gap:6px;">
+      <!-- LEFT button -->
+      <div id="drLeftBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(201,168,76,0.15);border:2px solid rgba(201,168,76,0.5);color:#C9A84C;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;">
+        ◀
       </div>
-      <!-- Speed indicator -->
-      <div style="text-align:center;">
-        <div id="drSpeedText" style="font-family:Cinzel,serif;font-size:1.5rem;color:#C9A84C;">0</div>
-        <div style="font-size:0.6rem;color:#888;">KM/H</div>
+      <!-- Center: Speed + Fire -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="text-align:center;">
+          <div id="drSpeedText" style="font-family:Cinzel,serif;font-size:1.3rem;color:#C9A84C;">0</div>
+          <div style="font-size:0.55rem;color:#888;">KM/H</div>
+        </div>
+        <div id="drFireBtn" style="width:60px;height:40px;border-radius:10px;background:rgba(255,50,0,0.25);border:2px solid rgba(255,80,0,0.7);color:#fff;font-size:0.65rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;gap:3px;">
+          <span>🔥</span><span id="drFireLabel">FIRE</span>
+        </div>
       </div>
-      <!-- Fire button -->
-      <div id="drFireBtn" style="width:80px;height:80px;border-radius:50%;background:rgba(255,50,0,0.25);border:3px solid rgba(255,80,0,0.7);color:#fff;font-size:0.75rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;font-family:Heebo,sans-serif;font-weight:700;flex-direction:column;gap:2px;">
-        <span style="font-size:1.2rem;">🔥</span>
-        <span id="drFireLabel">FIRE</span>
+      <!-- RIGHT button -->
+      <div id="drRightBtn" style="flex:1;height:70px;border-radius:14px;background:rgba(201,168,76,0.15);border:2px solid rgba(201,168,76,0.5);color:#C9A84C;font-size:1.8rem;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;">
+        ▶
       </div>
     </div>
   </div>
