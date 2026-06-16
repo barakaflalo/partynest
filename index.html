@@ -5448,7 +5448,7 @@ function updateDRLocal(dt, room) {
   }
   
   // Write to Firebase throttled
-  if(now - drLastFirebase > 150) {
+  if(now - drLastFirebase > 250) {
     drLastFirebase = now;
     var updates = {};
     updates['drPlayers/'+myId+'/progress'] = newProgress;
@@ -5491,7 +5491,7 @@ function updateDRLocal(dt, room) {
       botLane = Math.max(-5, Math.min(5, botLane));
       
       // Bot shoots at nearby players
-      if(Math.random() < 0.005 && nearestPlayer && nearDist2 < 0.1) {
+      if(Math.random() < 0.001 && nearestPlayer && nearDist2 < 0.05) {
         // Find the player to stun
         Object.entries(room.drPlayers||{}).forEach(function(e3) {
           if(e3[0] === 'bot_skull' || e3[1].finished) return;
@@ -5514,8 +5514,10 @@ function updateDRLocal(dt, room) {
         }
       }
       
-      // Update bot in Firebase (throttled with main update)
-      if(botNow - drLastFirebase < 50) {
+      // Update bot in Firebase (every 500ms only!)
+      if(!window._botLastWrite) window._botLastWrite = 0;
+      if(botNow - window._botLastWrite > 500) {
+        window._botLastWrite = botNow;
         db.ref('rooms/'+roomCode+'/drPlayers/bot_skull').update({
           progress: botProgress, lap: botLap, laneX: botLane, speed: botStunned ? 0.3 : 0.8
         });
@@ -5553,7 +5555,7 @@ function drawDeathRace(room) {
   
   // Fire particles in sky
   ctx.fillStyle = '#FF6600';
-  for(var si=0;si<20;si++){
+  for(var si=0;si<8;si++){
     var sx=(si*157+camProgress*150)%W;
     var sy=(si*83+Math.sin(now/1000+si)*8)%(H*0.35);
     ctx.globalAlpha = 0.3 + Math.sin(now/500+si)*0.2;
@@ -5579,7 +5581,7 @@ function drawDeathRace(room) {
   ctx.fillRect(0,hY,W,H-hY);
   
   // === ROAD with perspective ===
-  var numSegs = 60;
+  var numSegs = 35;
   var camFOV = 0.015;
   var roadW0 = W * 0.5;
   var roadW1 = W * DR_ROAD_W;
@@ -5619,36 +5621,14 @@ function drawDeathRace(room) {
       ctx.fillRect(segX-2, segY, 4, Math.max(1,nextY-segY));
     }
     
-    // Scenery
-    var scS = Math.max(0.03,(1-t)*1.2);
-    var segSeed = Math.floor((camProgress*1000+seg)*7919)%1000;
-    var sR = (segSeed*9301+49297)%233280/233280;
-    
-    // Poles
-    var pP = (camProgress*1000+seg)%10;
-    if(pP<1.2 && seg>2) {
-      var pH2=scS*70, pW2=Math.max(1,scS*4), pGap=segW/2+kw+scS*10;
-      ctx.fillStyle='#999';
-      ctx.fillRect(segX+pGap,segY-pH2,pW2,pH2);
-      ctx.fillRect(segX-pGap-pW2,segY-pH2,pW2,pH2);
-      var bR2=Math.max(1,scS*5);
-      ctx.fillStyle=Math.floor(seg/10)%2===0?'#FFFFAA':'#FF5544';
-      ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=scS*10;
-      ctx.beginPath(); ctx.arc(segX+pGap+pW2/2,segY-pH2,bR2,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(segX-pGap,segY-pH2,bR2,0,Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-    }
-    
-    // Trees
-    var tP=(camProgress*1000+seg*1.3)%14;
-    if(tP<1.5&&scS>0.05&&seg>3){
-      var side2=sR>0.5?1:-1;
-      var tX2=segX+side2*(segW/2+kw+scS*25);
-      var tH2=scS*(50+sR*30);
-      ctx.fillStyle='#3A1E00';
-      ctx.fillRect(tX2-scS*2,segY-tH2*0.3,scS*4,tH2*0.3);
-      ctx.fillStyle=sR<0.5?'#1A5C1A':'#2D7A2D';
-      ctx.beginPath();ctx.arc(tX2,segY-tH2*0.5,scS*12,0,Math.PI*2);ctx.fill();
+    // Simple edge markers only (fast!)
+    if(seg % 6 === 0 && seg > 2) {
+      var mkS = Math.max(0.03,(1-t)*1.2);
+      var mkGap = segW/2 + kw + 4;
+      var mkH = mkS * 30;
+      ctx.fillStyle = seg%12===0 ? '#FF6600' : '#FFCC00';
+      ctx.fillRect(segX + mkGap, segY - mkH, Math.max(2, mkS*5), mkH);
+      ctx.fillRect(segX - mkGap - mkS*5, segY - mkH, Math.max(2, mkS*5), mkH);
     }
     
     // Draw items on road
@@ -5662,7 +5642,7 @@ function drawDeathRace(room) {
           var pulse = 0.7+0.3*Math.sin(now/200);
           ctx.globalAlpha=pulse;
           ctx.fillStyle='#FFD700';
-          ctx.shadowColor='#FFD700'; ctx.shadowBlur=8;
+          
           ctx.beginPath(); ctx.arc(itemX,segY,itemS/2,0,Math.PI*2); ctx.fill();
           ctx.shadowBlur=0;
           ctx.font=Math.max(6,itemS*0.7)+'px sans-serif';
@@ -5672,7 +5652,7 @@ function drawDeathRace(room) {
           ctx.globalAlpha=1;
         } else {
           ctx.fillStyle = item.subtype==='oil'?'#332200':'#AA3333';
-          ctx.shadowColor='#FF0000'; ctx.shadowBlur=4;
+          
           ctx.beginPath(); ctx.arc(itemX,segY,itemS/2,0,Math.PI*2); ctx.fill();
           ctx.shadowBlur=0;
           ctx.font=Math.max(6,itemS*0.6)+'px sans-serif';
@@ -5732,7 +5712,7 @@ function drawDeathRace(room) {
   if(isStunned && Math.floor(now/100)%2===0) ctx.globalAlpha=0.5;
   if(drMyShield) {
     ctx.strokeStyle='rgba(0,200,255,0.6)'; ctx.lineWidth=3;
-    ctx.shadowColor='#00CCFF'; ctx.shadowBlur=12;
+    
     ctx.beginPath(); ctx.arc(myX,myY-myH/2,myW/2+8,0,Math.PI*2); ctx.stroke();
     ctx.shadowBlur=0;
   }
