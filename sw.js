@@ -1,6 +1,10 @@
 // PartyNest Service Worker - Network First
-const CACHE_NAME = 'partynest-v1';
-const OFFLINE_URL = '/partynest/';
+/* Cloudflare Pages redirects *.html -> pretty URL (308); a cached "redirected" copy is refused for page loads. Hand navigations a clean copy. */
+function cleanNav(r){ if(!r||!r.redirected) return r; return r.blob().then(function(b){return new Response(b,{status:r.status,statusText:r.statusText,headers:r.headers});}); }
+var _respondWith=FetchEvent.prototype.respondWith;
+FetchEvent.prototype.respondWith=function(p){ var nav=this.request.mode==='navigate'; return _respondWith.call(this, nav?Promise.resolve(p).then(cleanNav):p); };
+const CACHE_NAME = 'partynest-v2';
+const OFFLINE_URL = './';
 
 // Install: cache the main page
 self.addEventListener('install', function(e) {
@@ -17,7 +21,7 @@ self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
       return Promise.all(
-        keys.filter(function(k) { return k !== CACHE_NAME; })
+        keys.filter(function(k) { return k.indexOf('partynest-')===0 && k !== CACHE_NAME; })
             .map(function(k) { return caches.delete(k); })
       );
     })
